@@ -8,3 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Dossier de données
+/data/raw
+/data/processed
+
+# Fichiers de logs
+*.log
+
