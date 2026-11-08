@@ -16,7 +16,7 @@ Le travail est réparti en cinq analyses complémentaires :
 | --- | --- |
 | Ghislain ZEUFACK | Comprendre les causes des retards |
 | Romain VALLÉE | Saisonnalité des retards |
-| Nelson N'NDAAM | Persistance des retards dans le temps |
+| Manganaw N'DAAM | Persistance des retards dans le temps |
 | Emmanuel TAGAE | Comparaison de la fiabilité des liaisons |
 | Jonathan RAKOTOVAO | Volume de circulation et annulations |
 
