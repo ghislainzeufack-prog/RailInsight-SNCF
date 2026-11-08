@@ -10,7 +10,7 @@ Nous souhaitons présenter des résultats chiffrés, des visualisations compréh
 
 **Comment la fiabilité des liaisons TGV varie-t-elle, et quels facteurs sont associés aux retards et aux annulations au fil du temps ?**
 
-Le travail est réparti en cing analyses complémentaires :
+Le travail est réparti en cinq analyses complémentaires :
 
 | Membre | Axe d'analyse
 | --- | --- |
@@ -24,14 +24,13 @@ Chaque membre a développé progressivement son module Python, ses tests, ses vi
 
 ## Données utilisées
 
-**Source:** [SNCF Open Data - Régularité mensuelle TGV]
-https://ressources.data.sncf.com/explore/dataset/regularite-mensuelle-tgv-aqst/information/
+**Source:** [SNCF Open Data - Régularité mensuelle TGV](https://ressources.data.sncf.com/explore/dataset/regularite-mensuelle-tgv-aqst/information/)
 
 Le jeu de données décrit des indicateurs mensuels par liason, notamment les circulations prévues, les annulations, les retards et la répartition des causes de retard.
 
 Les données brutes ne sont pas incluses par défaut dans le dépôt. Les conventions de calcul, la qualité des données et les limites d'interprétation sont détaillées dans la **datasheet** commune, dans `docs/datasheet_sncf.md` (à venir)
 
-# Technologies prévue
+# Technologies prévues
 
 - **Python 3.14** et **uv** : environnement et dépendances du projet.
 - **Pandas** : préparation et analyse exploratoire des données.
