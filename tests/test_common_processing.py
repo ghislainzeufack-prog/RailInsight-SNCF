@@ -1,4 +1,3 @@
-
 import pandas as pd
 
 from projet_railinsight.common_processing import (
@@ -7,27 +6,24 @@ from projet_railinsight.common_processing import (
 
 
 def test_controler_qualite_donnees():
-    df = pd.DataFrame({
-        "Nombre de circulations prévues": [100, 0, 50],
-        "Nombre de trains annulés": [10, 8, 50],
-    })
+    df = pd.DataFrame(
+        {
+            "Nombre de circulations prévues": [100, 0, 50],
+            "Nombre de trains annulés": [10, 8, 50],
+        }
+    )
 
     resultat = controler_qualite_donnees(df)
 
     assert len(resultat) == 3
 
-    assert resultat["Trains réalisés"].tolist() == [
-        90, -8, 0
-    ]
+    assert resultat["Trains réalisés"].tolist() == [90, -8, 0]
 
-    assert resultat["effectifs_coherents"].tolist() == [
-        True, False, True
-    ]
+    assert resultat["effectifs_coherents"].tolist() == [True, False, True]
 
     # La fonction ne doit pas modifier le DataFrame original.
     assert "Trains réalisés" not in df.columns
     assert "effectifs_coherents" not in df.columns
-
 
 
 def test_charger_donnees(tmp_path):
@@ -37,11 +33,13 @@ def test_charger_donnees(tmp_path):
 
     chemin = tmp_path / "donnees_test.csv"
 
-    donnees = pd.DataFrame({
-        "Date": ["2026-01", "2026-02"],
-        "Nombre de circulations prévues": [100, 200],
-        "Nombre de trains annulés": [10, 20],
-    })
+    donnees = pd.DataFrame(
+        {
+            "Date": ["2026-01", "2026-02"],
+            "Nombre de circulations prévues": [100, 200],
+            "Nombre de trains annulés": [10, 20],
+        }
+    )
 
     donnees.to_csv(chemin, sep=";", index=False)
 
@@ -54,9 +52,7 @@ def test_charger_donnees(tmp_path):
     assert resultat["Date"].tolist() == ["2026-01", "2026-02"]
 
     # Vérifier que Date_parsed est de type datetime
-    assert pd.api.types.is_datetime64_any_dtype(
-        resultat["Date_parsed"]
-    )
+    assert pd.api.types.is_datetime64_any_dtype(resultat["Date_parsed"])
 
     # Vérifier la conversion des dates
     assert resultat["Date_parsed"].dt.strftime("%Y-%m").tolist() == [
@@ -75,19 +71,20 @@ def test_charger_donnees(tmp_path):
     ]
 
 
-
 def test_construire_incoherences_seuils():
     """Vérifie la détection des incohérences entre seuils de retard."""
     from projet_railinsight.common_processing import construire_incoherences
 
-    donnees = pd.DataFrame({
-        "Date_parsed": pd.to_datetime(["2025-01", "2025-02"]),
-        "Nombre de circulations prévues": [100, 100],
-        "Nombre de trains annulés": [10, 10],
-        "Nombre trains en retard > 15min": [20, 10],
-        "Nombre trains en retard > 30min": [10, 15],
-        "Nombre trains en retard > 60min": [5, 5],
-    })
+    donnees = pd.DataFrame(
+        {
+            "Date_parsed": pd.to_datetime(["2025-01", "2025-02"]),
+            "Nombre de circulations prévues": [100, 100],
+            "Nombre de trains annulés": [10, 10],
+            "Nombre trains en retard > 15min": [20, 10],
+            "Nombre trains en retard > 30min": [10, 15],
+            "Nombre trains en retard > 60min": [5, 5],
+        }
+    )
 
     incoherences = construire_incoherences(donnees)
 
@@ -103,10 +100,12 @@ def test_get_masque_lignes_incoherentes():
         get_masque_lignes_incoherentes,
     )
 
-    incoherences = pd.DataFrame({
-        "Effectifs négatifs": [False, True, False],
-        "Incohérence des seuils de retard": [False, False, True],
-    })
+    incoherences = pd.DataFrame(
+        {
+            "Effectifs négatifs": [False, True, False],
+            "Incohérence des seuils de retard": [False, False, True],
+        }
+    )
 
     # Sélection d'un seul contrôle
     masque = get_masque_lignes_incoherentes(
@@ -135,5 +134,3 @@ def test_get_masque_lignes_incoherentes():
             incoherences,
             ["Contrôle inexistant"],
         )
-
-

@@ -1,4 +1,3 @@
-
 """Chargement et préparation commune des données SNCF."""
 
 from pathlib import Path
@@ -29,9 +28,7 @@ def charger_donnees(chemin: str | Path = DATA_PATH) -> pd.DataFrame:
     chemin = Path(chemin)
 
     if not chemin.is_file():
-        raise FileNotFoundError(
-            f"Fichier de données introuvable : {chemin}"
-        )
+        raise FileNotFoundError(f"Fichier de données introuvable : {chemin}")
 
     df = pd.read_csv(chemin, sep=";")
 
@@ -60,13 +57,10 @@ def controler_qualite_donnees(df: pd.DataFrame) -> pd.DataFrame:
     donnees["Trains réalisés"] = prevus - annules
 
     donnees["effectifs_coherents"] = (
-        (prevus >= 0)
-        & (annules >= 0)
-        & (annules <= prevus)
+        (prevus >= 0) & (annules >= 0) & (annules <= prevus)
     )
 
     return donnees
-
 
 
 def construire_incoherences(df: pd.DataFrame) -> pd.DataFrame:
@@ -93,39 +87,29 @@ def construire_incoherences(df: pd.DataFrame) -> pd.DataFrame:
         | (retard_60 < 0)
     )
 
-    incoherences["Annulations supérieures aux prévisions"] = (
-        annules > prevus
-    )
+    incoherences["Annulations supérieures aux prévisions"] = annules > prevus
 
     incoherences["Retards supérieurs aux trains réalisés"] = (
-        (retard_15 > realises)
-        | (retard_30 > realises)
-        | (retard_60 > realises)
+        (retard_15 > realises) | (retard_30 > realises) | (retard_60 > realises)
     )
 
-    incoherences["Incohérence des seuils de retard"] = (
-        (retard_60 > retard_30)
-        | (retard_30 > retard_15)
+    incoherences["Incohérence des seuils de retard"] = (retard_60 > retard_30) | (
+        retard_30 > retard_15
     )
 
-    
     # Vérifier les pourcentages associés aux causes de retard
     colonnes_pourcentages = [
-        colonne
-        for colonne in donnees.columns
-        if colonne.startswith("Prct retard")
+        colonne for colonne in donnees.columns if colonne.startswith("Prct retard")
     ]
 
     for colonne in colonnes_pourcentages:
-        incoherences[f"{colonne} incohérent"] = (
-            (donnees[colonne] < 0)
-            | (donnees[colonne] > 100)
+        incoherences[f"{colonne} incohérent"] = (donnees[colonne] < 0) | (
+            donnees[colonne] > 100
         )
 
-    
     return incoherences
 
- 
+
 def get_masque_lignes_incoherentes(
     df_incoherences: pd.DataFrame,
     colonnes: list[str],
@@ -136,19 +120,13 @@ def get_masque_lignes_incoherentes(
     False : aucune incohérence sélectionnée.
     """
     colonnes_absentes = [
-        colonne
-        for colonne in colonnes
-        if colonne not in df_incoherences.columns
+        colonne for colonne in colonnes if colonne not in df_incoherences.columns
     ]
 
     if colonnes_absentes:
-        raise ValueError(
-            f"Contrôles d'incohérence inconnus : {colonnes_absentes}"
-        )
+        raise ValueError(f"Contrôles d'incohérence inconnus : {colonnes_absentes}")
 
     if not colonnes:
         return pd.Series(False, index=df_incoherences.index, dtype=bool)
 
     return df_incoherences[colonnes].any(axis=1)
-
-
