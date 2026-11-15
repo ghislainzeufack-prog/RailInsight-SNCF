@@ -1,4 +1,3 @@
-
 """Préparation des données de ponctualité TGV."""
 
 import numpy as np
@@ -28,10 +27,7 @@ def preparer_donnees_retards(df: pd.DataFrame) -> pd.DataFrame:
     resultat["taux_retard_valide"] = (
         (resultat["Trains réalisés"] > 0)
         & (resultat["Nombre trains en retard > 15min"] >= 0)
-        & (
-            resultat["Nombre trains en retard > 15min"]
-            <= resultat["Trains réalisés"]
-        )
+        & (resultat["Nombre trains en retard > 15min"] <= resultat["Trains réalisés"])
     )
 
     resultat["taux_retard_15min"] = np.where(
@@ -54,9 +50,14 @@ def calculer_taux_mensuel(df: pd.DataFrame) -> pd.DataFrame:
 
     donnees = donnees.loc[donnees["taux_retard_valide"]].copy()
 
-    donnees["Date"] = pd.to_datetime(
-        donnees["Date"], format="%Y-%m"
-    )
+    if "Date_parsed" in donnees.columns:
+        donnees["Date"] = donnees["Date_parsed"]
+    else:
+        donnees["Date"] = pd.to_datetime(
+            donnees["Date"], format="%Y-%m", errors="coerce"
+        )
+
+    donnees = donnees.dropna(subset=["Date"])
 
     mensuel = (
         donnees.groupby("Date")

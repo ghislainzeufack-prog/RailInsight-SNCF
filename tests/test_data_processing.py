@@ -1,4 +1,3 @@
-
 import pandas as pd
 
 from projet_railinsight.data_processing import preparer_donnees_retards
@@ -6,11 +5,13 @@ from projet_railinsight.data_processing import preparer_donnees_retards
 
 def test_preparer_donnees_retards():
     """Vérifie le calcul des taux et le traitement des cas invalides."""
-    df = pd.DataFrame({
-        "Nombre de circulations prévues": [100, 20, 10, 5],
-        "Nombre de trains annulés": [10, 20, 0, 0],
-        "Nombre trains en retard > 15min": [18, 0, 12, 0],
-    })
+    df = pd.DataFrame(
+        {
+            "Nombre de circulations prévues": [100, 20, 10, 5],
+            "Nombre de trains annulés": [10, 20, 0, 0],
+            "Nombre trains en retard > 15min": [18, 0, 12, 0],
+        }
+    )
 
     resultat = preparer_donnees_retards(df)
 
@@ -40,23 +41,51 @@ def test_calculer_taux_mensuel():
     """Vérifie l'agrégation pondérée des retards mensuels."""
     from projet_railinsight.data_processing import calculer_taux_mensuel
 
-    df = pd.DataFrame({
-        "Date": ["2026-01", "2026-01", "2026-02", "2026-02"],
-        "Nombre de circulations prévues": [100, 200, 50, 10],
-        "Nombre de trains annulés": [0, 0, 0, 10],
-        "Nombre trains en retard > 15min": [10, 40, 5, 0],
-    })
+    df = pd.DataFrame(
+        {
+            "Date": ["2026-01", "2026-01", "2026-02", "2026-02"],
+            "Nombre de circulations prévues": [100, 200, 50, 10],
+            "Nombre de trains annulés": [0, 0, 0, 10],
+            "Nombre trains en retard > 15min": [10, 40, 5, 0],
+        }
+    )
 
     resultat = calculer_taux_mensuel(df)
 
     # Janvier : 50 trains en retard sur 300 réalisés
     taux_janvier = 100 * 50 / 300
-    assert abs(
-        resultat.loc["2026-01-01", "taux_retard_15min"] - taux_janvier
-    ) < 1e-10
+    assert abs(resultat.loc["2026-01-01", "taux_retard_15min"] - taux_janvier) < 1e-10
 
     # Février : la ligne sans circulation réalisée est exclue
     assert resultat.loc["2026-02-01", "taux_retard_15min"] == 10.0
 
     # Deux mois distincts
     assert len(resultat) == 2
+
+
+def test_calculer_taux_mensuel_avec_date_parsed():
+    """Vérifie l'utilisation de Date_parsed et l'exclusion des dates invalides."""
+    from projet_railinsight.data_processing import calculer_taux_mensuel
+
+    df = pd.DataFrame(
+        {
+            "Date": ["2026-01", "date-invalide", "2026-01"],
+            "Date_parsed": pd.to_datetime(["2026-01", None, "2026-01"]),
+            "Nombre de circulations prévues": [100, 200, 50],
+            "Nombre de trains annulés": [0, 0, 0],
+            "Nombre trains en retard > 15min": [10, 40, 10],
+        }
+    )
+
+    resultat = calculer_taux_mensuel(df)
+
+    # Seules les deux observations avec une date valide sont retenues
+    assert len(resultat) == 1
+
+    # Janvier : 20 retards parmi 150 trains réalisés
+    taux_attendu = 100 * 20 / 150
+
+    assert abs(resultat.loc["2026-01-01", "taux_retard_15min"] - taux_attendu) < 1e-10
+
+    # Le DataFrame original reste inchangé
+    assert df.loc[1, "Date"] == "date-invalide"
