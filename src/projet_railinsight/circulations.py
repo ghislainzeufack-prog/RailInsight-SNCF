@@ -7,8 +7,8 @@ de regularite mensuelle TGV de la SNCF sans modifier le DataFrame d'origine.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 import logging
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -166,7 +166,7 @@ class AnalyseCirculations:
         """Retourne un bilan chiffre des anomalies detectees dans le jeu de donnees."""
         df = self._donnees_brutes
         return {
-            "total_lignes": int(len(df)),
+            "total_lignes": len(df),
             "lignes_valides": int(df["est_valide"].sum()),
             "lignes_invalides": int((~df["est_valide"]).sum()),
             "prevu_nul_ou_negatif": int((df["nb_train_prevu"] <= 0).sum()),
@@ -241,7 +241,7 @@ class AnalyseCirculations:
         return pd.DataFrame(
             [
                 {
-                    "nb_observations": int(len(df)),
+                    "nb_observations": len(df),
                     "nb_liaisons": int(df["liaison"].nunique()),
                     "total_trains_prevus": int(total_prevu),
                     "total_annulations": int(total_annul),
@@ -322,12 +322,14 @@ class AnalyseCirculations:
         sous_df = df[["nb_train_prevu", cible]].dropna()
         n_obs = len(sous_df)
         if n_obs < 3 or sous_df["nb_train_prevu"].nunique() < 2 or sous_df[cible].nunique() < 2:
-            return {"n": int(n_obs), "pearson": np.nan, "spearman": np.nan}
+            return {"n": n_obs, "pearson": np.nan, "spearman": np.nan}
 
+        rang_x = sous_df["nb_train_prevu"].rank(method="average")
+        rang_y = sous_df[cible].rank(method="average")
         return {
-            "n": int(n_obs),
+            "n": n_obs,
             "pearson": float(sous_df["nb_train_prevu"].corr(sous_df[cible], method="pearson")),
-            "spearman": float(sous_df["nb_train_prevu"].corr(sous_df[cible], method="spearman")),
+            "spearman": float(rang_x.corr(rang_y, method="pearson")),
         }
 
     def construire_groupes_volume(
