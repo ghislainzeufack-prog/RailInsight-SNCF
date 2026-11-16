@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from projet_railinsight.common_processing import charger_donnees
@@ -68,14 +69,28 @@ col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Observations SNCF", f"{len(donnees):,}".replace(",", " "))
 col2.metric("Mois étudiés", len(serie))
-col3.metric("Taux moyen mensuel", f"{serie.mean():.2f} %")
-col4.metric("Dernier taux observé", f"{serie.iloc[-1]:.2f} %")
+
+col3.metric(
+    "Moyenne des taux mensuels (+15 min)",
+    f"{serie.mean():.2f} %",
+)
+
+col4.metric(
+    "Taux de retard — dernier mois",
+    f"{serie.iloc[-1]:.2f} %",
+)
 
 st.caption(f"Période : {serie.index.min():%m/%Y} à {serie.index.max():%m/%Y}")
 
+st.caption(
+    "Le taux moyen correspond à la moyenne arithmétique "
+    "des taux mensuels de retard de plus de 15 minutes. "
+    "Chaque mois possède le même poids dans ce calcul."
+)
+
 
 # ---------------------------------------------------------
-# 2. Évolution des retards
+# 2. Évolution mensuelle des retards
 # ---------------------------------------------------------
 
 st.divider()
@@ -87,9 +102,43 @@ st.write(
     "de trains effectivement réalisés."
 )
 
-graphique = pd.DataFrame({"Taux de retard (%)": serie})
+graphique = go.Figure()
 
-st.line_chart(graphique, x_label="Mois", y_label="Taux (%)")
+graphique.add_trace(
+    go.Scatter(
+        x=serie.index,
+        y=serie.values,
+        mode="lines+markers",
+        name="Taux de retard",
+        line={"color": "#2563EB", "width": 2},
+        marker={"size": 4},
+        hovertemplate=(
+            "Mois : %{x|%m/%Y}<br>Taux de retard : %{y:.2f} %<extra></extra>"
+        ),
+    )
+)
+
+graphique.update_layout(
+    title="Évolution du taux mensuel de retard des TGV",
+    xaxis_title="Mois",
+    yaxis_title="Taux de retard (%)",
+    hovermode="x unified",
+    height=450,
+    margin={"l": 20, "r": 20, "t": 60, "b": 20},
+)
+
+graphique.update_xaxes(
+    tickformat="%m/%Y",
+    dtick="M12",
+    showgrid=True,
+)
+
+graphique.update_yaxes(
+    ticksuffix=" %",
+    rangemode="tozero",
+)
+
+st.plotly_chart(graphique, width="stretch")
 
 st.info(
     "Une augmentation du taux indique une proportion plus "
@@ -184,11 +233,77 @@ comparaison = pd.DataFrame(
     }
 )
 
-st.line_chart(
-    comparaison,
-    x_label="Mois",
-    y_label="Taux de retard (%)",
+fig_previsions = go.Figure()
+
+fig_previsions.add_trace(
+    go.Scatter(
+        x=comparaison.index,
+        y=comparaison["Observé"],
+        mode="lines+markers",
+        name="Taux observé",
+        line={"color": "#2563EB", "width": 3},
+        marker={"size": 7},
+        hovertemplate=("Mois : %{x|%m/%Y}<br>Observé : %{y:.2f} %<extra></extra>"),
+    )
 )
+
+fig_previsions.add_trace(
+    go.Scatter(
+        x=comparaison.index,
+        y=comparaison["AR(1)"],
+        mode="lines+markers",
+        name="Prévision AR(1)",
+        line={"color": "#EA580C", "width": 2, "dash": "dash"},
+        marker={"size": 6},
+        hovertemplate=("Mois : %{x|%m/%Y}<br>AR(1) : %{y:.2f} %<extra></extra>"),
+    )
+)
+
+fig_previsions.add_trace(
+    go.Scatter(
+        x=comparaison.index,
+        y=comparaison["Naïf"],
+        mode="lines+markers",
+        name="Prévision naïve",
+        line={"color": "#16A34A", "width": 2, "dash": "dot"},
+        marker={"size": 6},
+        hovertemplate=("Mois : %{x|%m/%Y}<br>Naïf : %{y:.2f} %<extra></extra>"),
+    )
+)
+
+fig_previsions.update_layout(
+    title="Comparaison des prévisions sur la période de test",
+    xaxis_title="Mois",
+    yaxis_title="Taux de retard (%)",
+    hovermode="x unified",
+    legend={
+        "orientation": "h",
+        "yanchor": "bottom",
+        "y": 1.02,
+        "xanchor": "left",
+        "x": 0,
+    },
+    height=450,
+    margin={"l": 20, "r": 20, "t": 90, "b": 20},
+)
+
+fig_previsions.update_xaxes(
+    tickformat="%m/%Y",
+    dtick="M1",
+    tickangle=-45,
+)
+
+fig_previsions.update_yaxes(
+    ticksuffix=" %",
+    rangemode="tozero",
+)
+
+st.plotly_chart(fig_previsions, width="stretch")
+
+
+# ---------------------------------------------------------
+# Performances des modèles
+# ---------------------------------------------------------
 
 resultats = pd.DataFrame(
     {
@@ -199,13 +314,15 @@ resultats = pd.DataFrame(
 )
 
 st.subheader("Performances des modèles")
+
 st.dataframe(
     resultats.style.format({"MAE": "{:.3f}", "RMSE": "{:.3f}"}),
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
 )
 
 meilleur_mae = resultats.loc[resultats["MAE"].idxmin(), "Modèle"]
+
 meilleur_rmse = resultats.loc[resultats["RMSE"].idxmin(), "Modèle"]
 
 st.write(f"**Meilleur modèle selon la MAE :** {meilleur_mae}")
