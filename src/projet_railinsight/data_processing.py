@@ -1,9 +1,26 @@
+
 """Préparation des données de ponctualité TGV."""
+
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from projet_railinsight.common_processing import controler_qualite_donnees
+
+def charger_donnees_tgv(chemin: str | Path) -> pd.DataFrame:
+    """Charge les données SNCF et prépare la colonne Date."""
+    donnees = pd.read_csv(chemin, sep=";")
+
+    if "Date" not in donnees.columns:
+        raise ValueError("Colonne manquante : Date")
+
+    donnees["Date_parsed"] = pd.to_datetime(
+        donnees["Date"],
+        format="%Y-%m",
+        errors="coerce",
+    )
+
+    return donnees
 
 
 def preparer_donnees_retards(df: pd.DataFrame) -> pd.DataFrame:
@@ -22,12 +39,27 @@ def preparer_donnees_retards(df: pd.DataFrame) -> pd.DataFrame:
     if manquantes:
         raise ValueError(f"Colonnes manquantes : {sorted(manquantes)}")
 
-    resultat = controler_qualite_donnees(df)
+    resultat = df.copy()
+
+    prevus = resultat["Nombre de circulations prévues"]
+    annules = resultat["Nombre de trains annulés"]
+
+    resultat["Trains réalisés"] = prevus - annules
+
+    resultat["effectifs_coherents"] = (
+        (prevus >= 0)
+        & (annules >= 0)
+        & (annules <= prevus)
+    )
 
     resultat["taux_retard_valide"] = (
-        (resultat["Trains réalisés"] > 0)
+        resultat["effectifs_coherents"]
+        & (resultat["Trains réalisés"] > 0)
         & (resultat["Nombre trains en retard > 15min"] >= 0)
-        & (resultat["Nombre trains en retard > 15min"] <= resultat["Trains réalisés"])
+        & (
+            resultat["Nombre trains en retard > 15min"]
+            <= resultat["Trains réalisés"]
+        )
     )
 
     resultat["taux_retard_15min"] = np.where(
@@ -54,7 +86,9 @@ def calculer_taux_mensuel(df: pd.DataFrame) -> pd.DataFrame:
         donnees["Date"] = donnees["Date_parsed"]
     else:
         donnees["Date"] = pd.to_datetime(
-            donnees["Date"], format="%Y-%m", errors="coerce"
+            donnees["Date"],
+            format="%Y-%m",
+            errors="coerce",
         )
 
     donnees = donnees.dropna(subset=["Date"])
@@ -69,7 +103,9 @@ def calculer_taux_mensuel(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     mensuel["taux_retard_15min"] = (
-        100 * mensuel["trains_retardes"] / mensuel["trains_realises"]
+        100
+        * mensuel["trains_retardes"]
+        / mensuel["trains_realises"]
     )
 
     return mensuel

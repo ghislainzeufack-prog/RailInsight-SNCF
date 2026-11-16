@@ -6,8 +6,10 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from projet_railinsight.common_processing import charger_donnees
-from projet_railinsight.data_processing import calculer_taux_mensuel
+from projet_railinsight.data_processing import (
+    calculer_taux_mensuel,
+    charger_donnees_tgv,
+)
 from projet_railinsight.persistence import (
     estimer_ar1,
     evaluer_previsions,
@@ -39,7 +41,7 @@ def charger_serie_mensuelle():
         / "regularite-mensuelle-tgv-aqst.csv"
     )
 
-    df = charger_donnees(chemin)
+    df = charger_donnees_tgv(chemin)
     mensuel = calculer_taux_mensuel(df)
 
     serie = mensuel["taux_retard_15min"].dropna().sort_index()
@@ -67,7 +69,11 @@ st.header("1. Vue d'ensemble")
 
 col1, col2, col3, col4 = st.columns(4)
 
-col1.metric("Observations SNCF", f"{len(donnees):,}".replace(",", " "))
+col1.metric(
+    "Observations SNCF",
+    f"{len(donnees):,}".replace(",", " "),
+)
+
 col2.metric("Mois étudiés", len(serie))
 
 col3.metric(
