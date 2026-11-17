@@ -129,3 +129,9 @@ La cible du projet est une **couverture d'au moins 90 %** du code applicatif mes
 **Lien Streamlit :** (à ajouter après le premier déploiement public.)
 
 (Les étapes de déploiement seront documentées ici une fois vérifiées sur l'application réelle)
+### Analyse circulations et annulations
+- **Question :** Les liaisons davantage desservies connaissent-elles des taux d'annulation ou de retard differents ?
+- **Resultats disponibles :** Indicateurs ponderes (taux d'annulation et de retard), correlations de Pearson/Spearman (Volet A), comparaison par groupes de desserte en tertiles (Volet B) et croisement duree/robustesse (Volet C).
+- **Filtres :** Periode (`YYYY-MM`), selection de liaisons, seuil minimal de circulations prevues, filtre des valeurs extremes (IQR) et comparateur de 2 a 5 liaisons avec export CSV.
+- **Limites :** Analyse descriptive et associative (non causale) sur les circulations prevues (offre de trains et non nombre de voyageurs).
+- **Documentation :** [docs/analyses/circulations.md](docs/analyses/circulations.md)

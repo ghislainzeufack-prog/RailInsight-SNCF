@@ -16,13 +16,13 @@ from projet_railinsight.circulations import (
 
 @st.cache_data(show_spinner="Chargement des donnees TGV SNCF...")
 def charger_donnees_tgv() -> pd.DataFrame:
-    """Charge le jeu de donnees via le module partage du groupe ou les chemins standards."""
+    """Charge le jeu de donnees via common_processing ou les chemins standards."""
     try:
-        from projet_railinsight import data_loader  # type: ignore[import-not-found]
+        from projet_railinsight.common_processing import charger_donnees  # type: ignore[import-not-found]
 
-        for nom_fn in ("load_data", "charger_donnees", "get_data", "load_tgv_data"):
-            if hasattr(data_loader, nom_fn):
-                return getattr(data_loader, nom_fn)()
+        df_commun = charger_donnees()
+        if isinstance(df_commun, pd.DataFrame) and not df_commun.empty:
+            return df_commun
     except Exception:
         pass
 
