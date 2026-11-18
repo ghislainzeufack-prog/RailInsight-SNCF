@@ -16,7 +16,7 @@ jobs:
     steps:
       # On recupere le code du projet
       - name: Recuperer le projet
-        uses: actions/checkout@v7
+        uses: actions/checkout@v10.3.3
 
       # On installe uv
       - name: Installer uv
