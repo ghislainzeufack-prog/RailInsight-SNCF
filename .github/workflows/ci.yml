@@ -1,0 +1,47 @@
+
+name: CI - RailInsight SNCF
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  qualite-et-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperation du code
+        uses: actions/checkout@v4
+
+      - name: Installation de uv et Python
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          python-version: "3.14"
+          enable-cache: true
+
+      - name: Installation des dependances
+        run: uv sync --locked --group dev
+
+      - name: Analyse statique Ruff
+        run: uv run ruff check .
+
+      - name: Verification du formatage
+        run: uv run ruff format --check .
+
+      - name: Tests unitaires
+        shell: bash
+        run: |
+          if find tests -name "test_*.py" -print -quit | grep -q .; then
+            uv run pytest tests/ -q
+          else
+            echo "Aucun test Python disponible pour le moment."
+          fi
+
