@@ -1,14 +1,12 @@
-from projet_railinsight.preprocessing_fiabilite import (
-    charger_et_preparer_donnees,
-)
 from pathlib import Path
-
 
 import plotly.express as px
 import streamlit as st
 
 from projet_railinsight.fiabilite import AnalyseFiabilite
-
+from projet_railinsight.preprocessing_fiabilite import (
+    charger_et_preparer_donnees,
+)
 
 # Configuration de la page
 st.set_page_config(
@@ -27,8 +25,6 @@ st.caption(
 )
 
 
-
-
 # Chemin du fichier brut SNCF
 CHEMIN = (
     Path(__file__).resolve().parents[1]
@@ -42,7 +38,6 @@ CHEMIN = (
 def charger_donnees():
     # Préparation automatique des données
     return charger_et_preparer_donnees(CHEMIN)
-
 
 
 if not CHEMIN.exists():
@@ -112,11 +107,7 @@ st.subheader("Top 10 des liaisons les plus en retard")
 
 top10 = classement.head(10).copy()
 
-top10["Liaison"] = (
-    top10["Gare de départ"]
-    + " → "
-    + top10["Gare d'arrivée"]
-)
+top10["Liaison"] = top10["Gare de départ"] + " → " + top10["Gare d'arrivée"]
 
 fig_top10 = px.bar(
     top10.sort_values("taux_retard"),
@@ -154,9 +145,9 @@ st.plotly_chart(fig_top10, use_container_width=True)
 st.subheader("Évolution mensuelle d'une liaison")
 
 options = list(
-    classement[
-        ["Service", "Gare de départ", "Gare d'arrivée"]
-    ].itertuples(index=False, name=None)
+    classement[["Service", "Gare de départ", "Gare d'arrivée"]].itertuples(
+        index=False, name=None
+    )
 )
 
 service, depart, arrivee = st.selectbox(

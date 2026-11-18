@@ -1,4 +1,3 @@
-
 from pathlib import Path
 
 import pandas as pd
@@ -62,9 +61,7 @@ def charger_et_preparer_donnees(chemin: str | Path) -> pd.DataFrame:
     retard_60 = donnees["Nombre trains en retard > 60min"]
 
     incoherences_30 = (
-        (retard_30 < 0)
-        | (retard_30 > retard_15)
-        | (retard_30 < retard_60)
+        (retard_30 < 0) | (retard_30 > retard_15) | (retard_30 < retard_60)
     )
 
     # Remplacement des valeurs incohérentes

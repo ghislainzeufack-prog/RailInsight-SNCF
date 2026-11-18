@@ -1,5 +1,5 @@
-
 import pandas as pd
+
 
 def calculer_taux_retard(
     trains_prevus: int,
@@ -28,7 +28,6 @@ def calculer_taux_retard(
     return 100 * trains_retard / trains_circules
 
 
-
 def calculer_taux_annulation(
     trains_prevus: int,
     trains_annules: int,
@@ -49,7 +48,6 @@ def calculer_taux_annulation(
     return 100 * trains_annules / trains_prevus
 
 
-
 class AnalyseFiabilite:
     """Analyse la fiabilité des liaisons TGV à partir des données SNCF."""
 
@@ -60,7 +58,6 @@ class AnalyseFiabilite:
 
         # Conservation d'une copie indépendante
         self.donnees = donnees.copy()
-
 
     def calculer_indicateurs(self) -> pd.DataFrame:
         """Calcule les taux de retard et d'annulation pour chaque observation."""
@@ -112,7 +109,6 @@ class AnalyseFiabilite:
 
         return resultat
 
-
     def classer_liaisons(
         self,
         annee: int | None = None,
@@ -146,19 +142,16 @@ class AnalyseFiabilite:
             donnees = donnees.loc[donnees["Date"].dt.year == annee].copy()
 
         # Agrégation des effectifs par liaison
-        classement = (
-            donnees.groupby(
-                ["Service", "Gare de départ", "Gare d'arrivée"],
-                as_index=False,
-            )
-            .agg(
-                trains_circules=("Trains circulés", "sum"),
-                trains_retard=(
-                    "Nombre de trains en retard à l'arrivée",
-                    "sum",
-                ),
-                nombre_mois=("Date", "nunique"),
-            )
+        classement = donnees.groupby(
+            ["Service", "Gare de départ", "Gare d'arrivée"],
+            as_index=False,
+        ).agg(
+            trains_circules=("Trains circulés", "sum"),
+            trains_retard=(
+                "Nombre de trains en retard à l'arrivée",
+                "sum",
+            ),
+            nombre_mois=("Date", "nunique"),
         )
 
         # Sélection des liaisons suffisamment représentées
@@ -179,8 +172,6 @@ class AnalyseFiabilite:
         ).reset_index(drop=True)
 
         return classement
-
-
 
     def evolution_temporelle(
         self,
@@ -237,5 +228,3 @@ class AnalyseFiabilite:
         )
 
         return evolution
-
-

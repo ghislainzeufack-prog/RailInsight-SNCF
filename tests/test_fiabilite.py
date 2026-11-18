@@ -1,4 +1,3 @@
-
 import pandas as pd
 import pytest
 
@@ -39,7 +38,6 @@ def test_taux_retard_negatif():
         calculer_taux_retard(100, 5, -3)
 
 
-
 def test_taux_annulation_normal():
     # Vérification du calcul classique
     resultat = calculer_taux_annulation(200, 10)
@@ -70,13 +68,14 @@ def test_taux_annulation_negatif():
         calculer_taux_annulation(100, -5)
 
 
-
 def test_initialisation_analyse():
     # Création d'un DataFrame de test
-    donnees = pd.DataFrame({
-        "Gare de départ": ["Paris"],
-        "Gare d'arrivée": ["Lyon"],
-    })
+    donnees = pd.DataFrame(
+        {
+            "Gare de départ": ["Paris"],
+            "Gare d'arrivée": ["Lyon"],
+        }
+    )
 
     analyse = AnalyseFiabilite(donnees)
 
@@ -100,14 +99,15 @@ def test_initialisation_copie_independante():
     assert donnees.loc[0, "valeur"] == 10
 
 
-
 def test_calculer_indicateurs():
     # Création d'un DataFrame de test
-    donnees = pd.DataFrame({
-        "Nombre de circulations prévues": [200, 100],
-        "Nombre de trains annulés": [10, 0],
-        "Nombre de trains en retard à l'arrivée": [38, 15],
-    })
+    donnees = pd.DataFrame(
+        {
+            "Nombre de circulations prévues": [200, 100],
+            "Nombre de trains annulés": [10, 0],
+            "Nombre de trains en retard à l'arrivée": [38, 15],
+        }
+    )
 
     analyse = AnalyseFiabilite(donnees)
     resultat = analyse.calculer_indicateurs()
@@ -119,10 +119,12 @@ def test_calculer_indicateurs():
 
 def test_calculer_indicateurs_colonne_manquante():
     # Vérification des colonnes obligatoires
-    donnees = pd.DataFrame({
-        "Nombre de circulations prévues": [100],
-        "Nombre de trains annulés": [5],
-    })
+    donnees = pd.DataFrame(
+        {
+            "Nombre de circulations prévues": [100],
+            "Nombre de trains annulés": [5],
+        }
+    )
 
     analyse = AnalyseFiabilite(donnees)
 
@@ -132,11 +134,13 @@ def test_calculer_indicateurs_colonne_manquante():
 
 def test_calculer_indicateurs_donnees_invalides():
     # Vérification des effectifs incohérents
-    donnees = pd.DataFrame({
-        "Nombre de circulations prévues": [100],
-        "Nombre de trains annulés": [10],
-        "Nombre de trains en retard à l'arrivée": [95],
-    })
+    donnees = pd.DataFrame(
+        {
+            "Nombre de circulations prévues": [100],
+            "Nombre de trains annulés": [10],
+            "Nombre de trains en retard à l'arrivée": [95],
+        }
+    )
 
     analyse = AnalyseFiabilite(donnees)
 
@@ -146,15 +150,17 @@ def test_calculer_indicateurs_donnees_invalides():
 
 def test_classement_liaisons():
     # Création de données sur deux mois
-    donnees = pd.DataFrame({
-        "Date": ["2025-01", "2025-02", "2025-01"],
-        "Service": ["National", "National", "National"],
-        "Gare de départ": ["Paris", "Paris", "Lyon"],
-        "Gare d'arrivée": ["Lyon", "Lyon", "Paris"],
-        "Nombre de circulations prévues": [100, 300, 200],
-        "Nombre de trains annulés": [0, 0, 0],
-        "Nombre de trains en retard à l'arrivée": [30, 30, 40],
-    })
+    donnees = pd.DataFrame(
+        {
+            "Date": ["2025-01", "2025-02", "2025-01"],
+            "Service": ["National", "National", "National"],
+            "Gare de départ": ["Paris", "Paris", "Lyon"],
+            "Gare d'arrivée": ["Lyon", "Lyon", "Paris"],
+            "Nombre de circulations prévues": [100, 300, 200],
+            "Nombre de trains annulés": [0, 0, 0],
+            "Nombre de trains en retard à l'arrivée": [30, 30, 40],
+        }
+    )
 
     analyse = AnalyseFiabilite(donnees)
 
@@ -174,15 +180,17 @@ def test_classement_liaisons():
 
 def test_classement_filtre_annee():
     # Vérification de la sélection temporelle
-    donnees = pd.DataFrame({
-        "Date": ["2024-01", "2025-01"],
-        "Service": ["National", "National"],
-        "Gare de départ": ["Paris", "Paris"],
-        "Gare d'arrivée": ["Lyon", "Lyon"],
-        "Nombre de circulations prévues": [100, 100],
-        "Nombre de trains annulés": [0, 0],
-        "Nombre de trains en retard à l'arrivée": [50, 10],
-    })
+    donnees = pd.DataFrame(
+        {
+            "Date": ["2024-01", "2025-01"],
+            "Service": ["National", "National"],
+            "Gare de départ": ["Paris", "Paris"],
+            "Gare d'arrivée": ["Lyon", "Lyon"],
+            "Nombre de circulations prévues": [100, 100],
+            "Nombre de trains annulés": [0, 0],
+            "Nombre de trains en retard à l'arrivée": [50, 10],
+        }
+    )
 
     analyse = AnalyseFiabilite(donnees)
 
@@ -198,15 +206,17 @@ def test_classement_filtre_annee():
 
 def test_classement_seuil_circulations():
     # Vérification du filtre de volume
-    donnees = pd.DataFrame({
-        "Date": ["2025-01"],
-        "Service": ["National"],
-        "Gare de départ": ["Paris"],
-        "Gare d'arrivée": ["Lyon"],
-        "Nombre de circulations prévues": [100],
-        "Nombre de trains annulés": [0],
-        "Nombre de trains en retard à l'arrivée": [20],
-    })
+    donnees = pd.DataFrame(
+        {
+            "Date": ["2025-01"],
+            "Service": ["National"],
+            "Gare de départ": ["Paris"],
+            "Gare d'arrivée": ["Lyon"],
+            "Nombre de circulations prévues": [100],
+            "Nombre de trains annulés": [0],
+            "Nombre de trains en retard à l'arrivée": [20],
+        }
+    )
 
     analyse = AnalyseFiabilite(donnees)
 
@@ -219,18 +229,19 @@ def test_classement_seuil_circulations():
     assert classement.empty
 
 
-
 def test_evolution_temporelle():
     # Création des observations mensuelles
-    donnees = pd.DataFrame({
-        "Date": ["2025-02", "2025-01", "2025-01"],
-        "Service": ["National", "National", "National"],
-        "Gare de départ": ["Paris", "Paris", "Paris"],
-        "Gare d'arrivée": ["Lyon", "Lyon", "Lyon"],
-        "Nombre de circulations prévues": [300, 100, 100],
-        "Nombre de trains annulés": [0, 0, 0],
-        "Nombre de trains en retard à l'arrivée": [30, 20, 40],
-    })
+    donnees = pd.DataFrame(
+        {
+            "Date": ["2025-02", "2025-01", "2025-01"],
+            "Service": ["National", "National", "National"],
+            "Gare de départ": ["Paris", "Paris", "Paris"],
+            "Gare d'arrivée": ["Lyon", "Lyon", "Lyon"],
+            "Nombre de circulations prévues": [300, 100, 100],
+            "Nombre de trains annulés": [0, 0, 0],
+            "Nombre de trains en retard à l'arrivée": [30, 20, 40],
+        }
+    )
 
     analyse = AnalyseFiabilite(donnees)
 
@@ -248,15 +259,17 @@ def test_evolution_temporelle():
 
 def test_evolution_temporelle_liaison_absente():
     # Vérification d'une liaison inexistante
-    donnees = pd.DataFrame({
-        "Date": ["2025-01"],
-        "Service": ["National"],
-        "Gare de départ": ["Paris"],
-        "Gare d'arrivée": ["Lyon"],
-        "Nombre de circulations prévues": [100],
-        "Nombre de trains annulés": [0],
-        "Nombre de trains en retard à l'arrivée": [20],
-    })
+    donnees = pd.DataFrame(
+        {
+            "Date": ["2025-01"],
+            "Service": ["National"],
+            "Gare de départ": ["Paris"],
+            "Gare d'arrivée": ["Lyon"],
+            "Nombre de circulations prévues": [100],
+            "Nombre de trains annulés": [0],
+            "Nombre de trains en retard à l'arrivée": [20],
+        }
+    )
 
     analyse = AnalyseFiabilite(donnees)
 

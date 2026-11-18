@@ -1,4 +1,3 @@
-
 import pandas as pd
 import pytest
 
@@ -12,15 +11,17 @@ def fichier_test(tmp_path):
     """Crée un fichier SNCF simplifié pour les tests."""
 
     # Données de test
-    donnees = pd.DataFrame({
-        "Date": ["2025-01", "2025-02", "2025-03"],
-        "Nombre de circulations prévues": [100, 0, 100],
-        "Nombre de trains annulés": [10, 0, 5],
-        "Nombre de trains en retard à l'arrivée": [20, 0, 15],
-        "Nombre trains en retard > 15min": [15, 0, 10],
-        "Nombre trains en retard > 30min": [8, 0, -3],
-        "Nombre trains en retard > 60min": [2, 0, 1],
-    })
+    donnees = pd.DataFrame(
+        {
+            "Date": ["2025-01", "2025-02", "2025-03"],
+            "Nombre de circulations prévues": [100, 0, 100],
+            "Nombre de trains annulés": [10, 0, 5],
+            "Nombre de trains en retard à l'arrivée": [20, 0, 15],
+            "Nombre trains en retard > 15min": [15, 0, 10],
+            "Nombre trains en retard > 30min": [8, 0, -3],
+            "Nombre trains en retard > 60min": [2, 0, 1],
+        }
+    )
 
     chemin = tmp_path / "sncf_test.csv"
     donnees.to_csv(chemin, sep=";", index=False)
