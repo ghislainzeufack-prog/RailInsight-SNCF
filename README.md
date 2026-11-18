@@ -109,6 +109,9 @@ railinsight-sncf/
 uv run streamlit run app.py
 ```
 
+Ouvrir **Saisonnalite** dans le menu pour filtrer les données, afficher les
+graphiques et télécharger les résultats en CSV.
+
 ## Appeler les fonctions
 
 Après clonage et `uv sync`, la connexion est prête : le compte de lecture est inclus dans le projet. Aucun fichier est à créer.
