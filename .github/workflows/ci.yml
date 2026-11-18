@@ -40,4 +40,4 @@ jobs:
 
       # On execute les tests et on controle la couverture
       - name: Tests et couverture
-        run: uv run pytest test/ --cov=projet_railinsight --cov-report=term-missing --cov-fail-under=90
+        run: uv run pytest tests/ --cov=projet_railinsight --cov-report=term-missing --cov-fail-under=90
