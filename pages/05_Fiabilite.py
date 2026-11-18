@@ -1,7 +1,9 @@
-
+from projet_railinsight.preprocessing_fiabilite import (
+    charger_et_preparer_donnees,
+)
 from pathlib import Path
 
-import pandas as pd
+
 import plotly.express as px
 import streamlit as st
 
@@ -26,22 +28,25 @@ st.caption(
 
 
 
-# Chargement des données nettoyées
+
+# Chemin du fichier brut SNCF
 CHEMIN = (
     Path(__file__).resolve().parents[1]
     / "data"
-    / "processed"
-    / "sncf_clean.csv"
+    / "raw"
+    / "regularite-mensuelle-tgv-aqst.csv"
 )
 
 
 @st.cache_data
 def charger_donnees():
-    return pd.read_csv(CHEMIN, sep=";")
+    # Préparation automatique des données
+    return charger_et_preparer_donnees(CHEMIN)
+
 
 
 if not CHEMIN.exists():
-    st.error("Fichier sncf_clean.csv introuvable.")
+    st.error("Fichier CSV brut SNCF introuvable dans data/raw/.")
     st.stop()
 
 df = charger_donnees()
