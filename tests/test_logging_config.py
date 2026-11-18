@@ -1,3 +1,5 @@
+"""Test du module logging_config.py"""
+
 import logging
 
 from projet_railinsight.logging_config import configurer_logs
