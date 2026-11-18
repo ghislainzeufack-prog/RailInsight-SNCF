@@ -1,4 +1,6 @@
 
+**Installation et configuration de la base de données en local**
+
 ## Prérequis
 
 Avant de lancer le projet, vérifiez que les outils suivants sont installés :

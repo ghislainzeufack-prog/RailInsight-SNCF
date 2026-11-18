@@ -156,12 +156,23 @@ resultats = analyser_saisonnalite(
 
 ## Tests et qualité
 
-```text
-uv run pytest
-uv run pytest --cov=railinsight_sncf --cov-report=term-missing
+La CI [Tests Python](.github/workflows/ci.yml) lance les tests et affiche leur
+couverture à chaque push et pull request sur GitHub, avec Python 3.14 et `uv`.
+Les résultats sont disponibles dans l’onglet **Actions**. Un lancement manuel
+est également possible avec **Run workflow** une fois le workflow présent sur
+la branche par défaut.
+
+Les tests de saisonnalité utilisent une base SQLite temporaire : aucun accès
+au VPS n’est nécessaire.
+
+Pour lancer les mêmes vérifications localement :
+
+```bash
+uv sync --locked --dev
+uv run --no-sync pytest tests/ -v --cov=projet_railinsight.saisonnalite --cov=projet_railinsight.moteur_sql --cov-report=term-missing
 ```
 
-La cible du projet est une **couverture d'au moins 90 %** du code applicatif mesuré. Les contrôles de style, la présence de docstrings, les tests et la couverture sont automatisés avec **GitHub Actions**.
+Configuration basée sur le [guide officiel uv pour GitHub Actions](https://docs.astral.sh/uv/guides/integration/github/).
 
 ## Documentation
 
