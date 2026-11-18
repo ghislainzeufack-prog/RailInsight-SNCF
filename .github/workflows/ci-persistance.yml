@@ -1,0 +1,58 @@
+
+name: CI - Persistance TGV
+
+on:
+  push:
+    branches:
+      - feature/analyse-persistance
+
+  pull_request:
+    paths:
+      - "src/projet_railinsight/data_processing.py"
+      - "src/projet_railinsight/persistence.py"
+      - "tests/test_data_processing.py"
+      - "tests/test_persistence.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/ci-persistance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  tests-persistance:
+    name: Ruff, pytest et couverture
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le depot
+        uses: actions/checkout@v4
+
+      - name: Installer uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Installer Python 3.14
+        run: uv python install 3.14
+
+      - name: Installer les dependances
+        run: uv sync --locked --python 3.14
+
+      - name: Verifier le code avec Ruff
+        run: |
+          uv run --python 3.14 ruff check \
+            src/projet_railinsight/data_processing.py \
+            src/projet_railinsight/persistence.py \
+            tests/test_data_processing.py \
+            tests/test_persistence.py
+
+      - name: Executer les tests avec couverture
+        run: |
+          uv run --python 3.14 pytest \
+            tests/test_data_processing.py \
+            tests/test_persistence.py \
+            --cov=projet_railinsight.data_processing \
+            --cov=projet_railinsight.persistence \
+            --cov-report=term-missing \
+            --cov-fail-under=90
