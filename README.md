@@ -26,13 +26,18 @@ Chaque membre a développé progressivement son module Python, ses tests, ses vi
 
 **Source:** [SNCF Open Data - Régularité mensuelle TGV](https://ressources.data.sncf.com/explore/dataset/regularite-mensuelle-tgv-aqst/information/)
 
-Le jeu de données décrit des indicateurs mensuels par liason, notamment les circulations prévues, les annulations, les retards et la répartition des causes de retard.
+Le jeu de données décrit des indicateurs mensuels par liaison, notamment les circulations prévues, les annulations, les retards et la répartition des causes de retard.
 
 Les données brutes ne sont pas incluses par défaut dans le dépôt. Les conventions de calcul, la qualité des données et les limites d'interprétation sont détaillées dans la **datasheet** commune, dans `docs/datasheet_sncf.md` (à venir)
 
 # Technologies prévues
 
 - **Python 3.14** et **uv** : environnement et dépendances du projet.
+- **NumPy** : calculs numériques
+- **Matplotlib** : graphiques
+- **Seaborn** : Visualisation des distributions et correlations
+- **nb_format** : Affichage des graphiques interactifs Plotly dans les notebooks Jupyter
+- **Scikit-learn** : Détection de certaines anomalies
 - **Pandas** : préparation et analyse exploratoire des données.
 - **Plotly** et **Streamlit** : visualisations interactives et application web.
 - **pytest** et **pytest-cov** : tests unitaires et mesure de couverture.

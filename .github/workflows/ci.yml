@@ -1,0 +1,48 @@
+# Integration continue du projet RailInsight
+name: CI RailInsight
+
+# On lance les verifications apres chaque push et Pull Request
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  qualite:
+    runs-on: ubuntu-latest
+
+    steps:
+      # On recupere le code du projet
+      - name: Recuperer le projet
+        uses: actions/checkout@v7
+
+      # On installe uv
+      - name: Installer uv
+        uses: astral-sh/setup-uv@v10.3.3
+
+      # On installe les dependances
+      - name: Installer les dependances
+        run: uv sync --locked --dev
+
+      # On verifie la qualite du code
+      - name: Ruff
+        run: uv run ruff check .
+
+      # On verifie le formatage
+      - name: Formatage
+        run: uv run ruff format --check .
+
+      # On verifie la presence des docstrings
+      - name: Docstrings
+        run: uv run ruff check src/projet_railinsight --select D100,D101,D102,D103
+
+      # On execute les tests et on controle la couverture
+      - name: Tests et couverture
+        run: uv run pytest tests/ --cov=projet_railinsight --cov-report=term-missing --cov-fail-under=90
+
+      # On verifie les problemes potentiels de securite
+      # dans notre module et notre interface Streamlit
+      - name: Securite du code
+        run: uv run ruff check src/projet_railinsight app.py --select S
