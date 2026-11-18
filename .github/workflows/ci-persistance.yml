@@ -12,6 +12,7 @@ on:
       - "src/projet_railinsight/persistence.py"
       - "tests/test_data_processing.py"
       - "tests/test_persistence.py"
+      - "pages/1_Persistance_TGV.py"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/ci-persistance.yml"
@@ -45,7 +46,8 @@ jobs:
             src/projet_railinsight/data_processing.py \
             src/projet_railinsight/persistence.py \
             tests/test_data_processing.py \
-            tests/test_persistence.py
+            tests/test_persistence.py \
+            pages/1_Persistance_TGV.py
 
       - name: Executer les tests avec couverture
         run: |
