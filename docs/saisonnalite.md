@@ -1,52 +1,19 @@
 # Module de saisonnalité
 
-`src/projet_railinsight/saisonnalite.py` reprend les analyses des notebooks à
-partir de `regularite_tgv` dans PostgreSQL. Il utilise la vue `regularite_tgv_clean` en mode nettoyage, comme `SQL_clean`
-dans le notebook, et la table brute sinon (`SQL_ref`). Il ne modifie pas la base.
+`src/projet_railinsight/saisonnalite.py` reprend les analyses des notebooks.
 
 ## Utilisation dans une future page Streamlit
 
-`creer_connexion()` se connecte directement à `178.104.170.49:5432`, base
-`sncf_c_gro_nul`, compte `railinsight_lecture`. Aucun tunnel ni clé SSH n’est
-nécessaire. Le module vérifie le certificat TLS public inclus dans le projet.
+`creer_connexion()` se connecte directement à un serveur PostgreSQL `178.104.170.49:5432`avec un compte `railinsight_lecture`. Aucun tunnel ni clé SSH n’est
+nécessaire. Le module vérifie le certificat TLS public inclus dans le projet. Ne pas abuser sur les requêtes coûteuses ou multiplier les connexions.
 
-Le mot de passe est lu depuis `~/.pgpass` (voir le README pour la configuration).
-Chaque membre demande les identifiants à Romain et installe uniquement les dépendances Python ; la base PostgreSQL reste sur le VPS.
+Les identifiants du compte de lecture sont inclus dans le module : cloner le projet et lancer `uv sync` suffit. Aucun fichier est à configurer.
+La base PostgreSQL reste sur le VPS.
 
 ```python
 import streamlit as st
 from projet_railinsight.moteur_sql import creer_connexion
 from projet_railinsight.saisonnalite import analyser_saisonnalite
-
-@st.cache_resource
-def connexion():
-    return creer_connexion()
-
-@st.cache_data(ttl=300)
-def analyses(nettoyage, debut, fin):
-    return analyser_saisonnalite(
-        connexion(), nettoyage=nettoyage, service="National",
-        annee_debut=debut, annee_fin=fin,
-    )
-
-resultats = analyses(True, 2020, 2025)
-st.dataframe(resultats["mensuel"])
-st.line_chart(resultats["mensuel"].set_index("date")[[
-    "total_annulation", "total_retard_depart", "total_retard_arrivee"
-]])
-st.line_chart(resultats["saisonnalite"])
-st.dataframe(resultats["correlations"])
-regression = resultats["regression"]
-if regression["disponible"]:
-    st.dataframe(regression["coefficients"])
-    st.dataframe(regression["observations"])
-else:
-    st.info(regression["raison"])
-```
-
-Passer `nettoyage=False` pour comparer aux données originales et `service=None`
-pour inclure tous les services. Les années sont inclusives ; sans bornes, toutes
-les années sont retenues. Les mois absents ne sont pas inventés ou remplis à zéro.
 
 ## Calculs et limites
 

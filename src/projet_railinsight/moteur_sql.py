@@ -15,8 +15,9 @@ def creer_connexion(url: str | None = None) -> Engine:
     url = url or os.environ.get("DATABASE_URL")
     options = {"connect_timeout": 10}
     if not url:
+        # Compte de lecture partagé pour les membres du projet.
         url = (
-            "postgresql+psycopg://railinsight_lecture@178.104.170.49:5432/"
+            "postgresql+psycopg://railinsight_lecture:Rb1ajZWK_Di6sn50SsBQOzegyvN8tbDw1iCPpnpN9lE@178.104.170.49:5432/"
             "sncf_c_gro_nul?sslmode=verify-ca"
         )
         options["sslrootcert"] = str(

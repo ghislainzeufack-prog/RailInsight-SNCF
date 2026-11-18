@@ -111,6 +111,8 @@ uv run streamlit run app.py
 
 ## Appeler les fonctions
 
+Après clonage et `uv sync`, la connexion est prête : le compte de lecture est inclus dans le projet. Aucun fichier est à créer.
+
 ### Exécuter une requête SQL
 
 ```python
@@ -118,7 +120,7 @@ from projet_railinsight.moteur_sql import creer_connexion, executer_requete
 
 engine = creer_connexion()
 
-# Entrée
+# Entrée exemple
 requete = "SELECT COUNT(*) AS nombre_lignes FROM regularite_tgv WHERE service = ?"
 data = executer_requete(engine, requete, ["National"])
 
@@ -136,7 +138,7 @@ from projet_railinsight.saisonnalite import analyser_saisonnalite
 resultats = analyser_saisonnalite(
     engine=engine,
     nettoyage=True,       # False pour les données brutes
-    service="National",  # None pour tous les services
+    service="National",  # None pour tous les services, International pour les trains internationaux
     annee_debut=2024,     # None pour aucune borne de début
     annee_fin=2025,       # None pour aucune borne de fin
 )
@@ -150,7 +152,6 @@ resultats = analyser_saisonnalite(
 #     "regression": dictionnaire des résultats du modèle,
 # }
 
-print(resultats["mensuel"].head())
 ```
 
 ## Tests et qualité
