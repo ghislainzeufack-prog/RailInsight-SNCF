@@ -16,3 +16,12 @@ wheels/
 # Fichiers de logs
 *.log
 
+.idea/
+.coverage
+
+# Rapports et caches de vérification
+.coverage.*
+htmlcov/
+coverage.xml
+.pytest_cache/
+.ruff_cache/

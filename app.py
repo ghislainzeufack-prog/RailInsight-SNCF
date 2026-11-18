@@ -23,7 +23,8 @@ def ordre_page(page: Path):
 
 fichiers = sorted(
     (
-        page for page in (REPERTOIRE_PROJET / "pages").glob("*.py")
+        page
+        for page in (REPERTOIRE_PROJET / "pages").glob("*.py")
         if page.name != "__init__.py"
     ),
     key=ordre_page,
@@ -39,7 +40,7 @@ for fichier in fichiers:
 
 def accueil():
     st.title("RailInsight - Régularité des TGV")
-    st.write("Explore les retards et les annulations des TGV.")
+    st.write("Explore les différentes analyses.")
     st.subheader("Analyses disponibles")
     for page in pages:
         st.page_link(page, label=page.title, icon="📊")

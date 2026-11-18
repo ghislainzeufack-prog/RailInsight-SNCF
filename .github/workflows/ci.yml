@@ -1,5 +1,7 @@
-name: Tests Python
+# Integration continue du projet RailInsight
+name: CI RailInsight
 
+# On lance les verifications apres chaque push et Pull Request
 on:
   push:
   pull_request:
@@ -13,29 +15,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tests:
-    name: Tests de saisonnalité — Python 3.14
+  qualite:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       MPLBACKEND: Agg
 
     steps:
-      - name: Récupérer le code
+      # On recupere le code du projet
+      - name: Recuperer le projet
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Installer uv et Python
+      # On installe uv
+      - name: Installer uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: "3.14"
           enable-cache: true
 
-      - name: Installer les dépendances verrouillées
+      # On installe les dependances
+      - name: Installer les dependances
         run: uv sync --locked --dev
 
-      - name: Lancer les tests et mesurer la couverture
-        run: >-
-          uv run --no-sync pytest tests/ -v
-          --cov=projet_railinsight.saisonnalite
-          --cov=projet_railinsight.moteur_sql
-          --cov-report=term-missing
+      # On verifie la qualite du code
+      - name: Ruff
+        run: uv run ruff check .
+
+      # On verifie le formatage
+      - name: Formatage
+        run: uv run ruff format --check .
+
+      # On verifie la presence des docstrings
+      - name: Docstrings
+        run: uv run ruff check src/projet_railinsight --select D100,D101,D102,D103
+
+      # On execute les tests et on controle la couverture
+      - name: Tests et couverture
+        run: uv run pytest tests/ --cov=projet_railinsight --cov-report=term-missing --cov-fail-under=90
+
+      # On verifie les problemes potentiels de securite
+      # dans notre module et notre interface Streamlit
+      - name: Securite du code
+        run: uv run ruff check src/projet_railinsight app.py --select S

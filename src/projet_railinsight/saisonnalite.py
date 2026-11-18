@@ -20,6 +20,7 @@ INDICATEURS = [
 
 # %% I. Base de données
 
+
 def charger_donnees_mensuelles(
     engine: Engine,
     *,
@@ -42,15 +43,12 @@ def charger_donnees_mensuelles(
     for annee in (annee_debut, annee_fin):
         if annee is not None and (type(annee) is not int or not 1 <= annee <= 9999):
             raise ValueError("Les années doivent être des entiers entre 1 et 9999.")
-    if (
-        annee_debut is not None
-        and annee_fin is not None
-        and annee_debut > annee_fin
-    ):
+    if annee_debut is not None and annee_fin is not None and annee_debut > annee_fin:
         raise ValueError("annee_debut doit être inférieure ou égale à annee_fin.")
 
     table = "regularite_tgv_clean" if nettoyage else "regularite_tgv"
 
+    # Le nom de table provient des deux constantes ci-dessus, jamais de la saisie.
     requete = f"""
         WITH donnees AS (
             SELECT *,
@@ -95,7 +93,7 @@ def charger_donnees_mensuelles(
         FROM donnees
         GROUP BY date
         ORDER BY date;
-    """
+    """  # noqa: S608
 
     parametres = [
         service,
@@ -173,8 +171,8 @@ def calculer_correlations(data: pd.DataFrame) -> pd.DataFrame:
 
 def tracer_correlations(data: pd.DataFrame):
     """Heatmap de la matrice de corrélation."""
-    from matplotlib.figure import Figure
     import seaborn as sns
+    from matplotlib.figure import Figure
 
     figure = Figure(figsize=(8, 6))
     sns.heatmap(
