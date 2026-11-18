@@ -16,3 +16,4 @@ wheels/
 # Fichiers de logs
 *.log
 
+.idea/
