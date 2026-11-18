@@ -2,6 +2,7 @@
 
 import pandas as pd
 import pytest
+
 from projet_railinsight.causes import (
     COLONNES_CAUSES,
     AnalyseCauses,
@@ -44,6 +45,18 @@ def test_colonne_manquante(df_sncf: pd.DataFrame) -> None:
         # On cree un objet avec le DataFrame incomplet, et normalement
         # on doit lever une exception
         AnalyseCauses(df_incomplet)
+
+
+def test_format_periode_invalide(df_sncf: pd.DataFrame) -> None:
+    """Ce test verifie qu'une date au mauvais format
+    declenche bien une exception AnalyseCausesErreur.
+    """
+    analyse = AnalyseCauses(df_sncf)
+
+    with pytest.raises(
+        AnalyseCausesErreur, match="La période attend le format YYYY-MM"
+    ):
+        analyse.filtrer_periode("2026-02c", "2026-02")
 
 
 def test_filtrer_periode(df_sncf: pd.DataFrame) -> None:
