@@ -16,11 +16,11 @@ jobs:
     steps:
       # On recupere le code du projet
       - name: Recuperer le projet
-        uses: actions/checkout@v10.3.3
+        uses: actions/checkout@v7
 
       # On installe uv
       - name: Installer uv
-        uses: astral-sh/setup-uv@v9
+        uses: astral-sh/setup-uv@v10.3.3
 
       # On installe les dependances
       - name: Installer les dependances
