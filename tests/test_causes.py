@@ -26,7 +26,7 @@ def df_sncf() -> pd.DataFrame:
     for cause in COLONNES_CAUSES:
         df[cause] = 0.0
     df.loc[:, COLONNES_CAUSES[0]] = [20, 35, 30, 0, 15]
-    df.loc[:, COLONNES_CAUSES[1]] = [10, 45, 40, 0, 20]
+    df.loc[:, COLONNES_CAUSES[1]] = [80, 65, 70, 0, 20]
     return df
 
 
@@ -44,3 +44,90 @@ def test_colonne_manquante(df_sncf: pd.DataFrame) -> None:
         # On cree un objet avec le DataFrame incomplet, et normalement
         # on doit lever une exception
         AnalyseCauses(df_incomplet)
+
+
+def test_filtrer_periode(df_sncf: pd.DataFrame) -> None:
+    """Ce test verifie que l'on conserve toutes les observations du mois
+    selectionnee, y compris lorsque la date de début est identique à la
+    date de fin.
+    """
+    analyse = AnalyseCauses(df_sncf).filtrer_periode("2026-02", "2026-02")
+    assert len(analyse.donnees()) == 2
+
+
+def test_periode_inversee(df_sncf: pd.DataFrame) -> None:
+    """Ce test reussi si une période invalide declenche une exception contrôlée."""
+    with pytest.raises(AnalyseCausesErreur, match="La date de début"):
+        AnalyseCauses(df_sncf).filtrer_periode("2026-03", "2026-01")
+
+
+def test_fitrer_liaison(df_sncf: pd.DataFrame) -> None:
+    """Ce test verfie qu'on selectionne uniquement les trains circulant dans
+    le sens demandé.
+    """
+    analyse = AnalyseCauses(df_sncf).filtrer_liaison("Yaoundé", "Douala")
+    assert len(analyse.donnees()) == 4  # On doit avoir 4 observations Yaoundé -> Douala
+    assert set(analyse.donnees()["Gare de départ"]) == {
+        "Yaoundé"
+    }  # On s'assure qu'on n'a bien un set {"Yaoundé"}, et pas {"Yaoundé", "Douala"}
+
+
+def test_regrouper_sens(df_sncf: pd.DataFrame) -> None:
+    """Ce test verifie si le regroupement contient les liaisons dans
+    les deux sens.
+    """
+    analyse = AnalyseCauses(df_sncf).regrouper_sens("Yaoundé", "Douala")
+    assert len(analyse.donnees()) == 5
+
+
+def test_conserver_observations_exploitables(df_sncf: pd.DataFrame) -> None:
+    """Ce test verifie si les observations avec zero train en retard
+    a l'arrivee, et/ou la somme de pourcentage des causes de retard
+    different de 100 avec une tolerance de TOLERANCE_POURCENTAGE
+    """
+    analyse = AnalyseCauses(df_sncf)
+
+    assert analyse.analyser_volume()["observations"] == 5
+    assert analyse.analyser_volume()["observations_exploitables"] == 3
+    assert analyse.analyser_volume()["retards_a_l_arrivee"] == 67
+    assert analyse.analyser_volume()["retards_couverts"] == 55
+    assert analyse.analyser_volume()["retards_exclus"] == 12
+    assert analyse.analyser_volume()["circulations_prevues"] == 260
+
+
+def test_pondere_avec_le_nombre_de_retards(df_sncf: pd.DataFrame) -> None:
+    """Ce test verifie le calcul de la moyenne ponderee et de la mediane"""
+    analyse = AnalyseCauses(df_sncf).filtrer_liaison("Yaoundé", "Douala")
+    repartition = analyse.repartition_causes().set_index("cause")
+
+    # Moyenne ponderee : (20 × 5 + 35 × 10) / (5 + 10) = 30 %
+    assert repartition.loc["causes externes", "part_ponderee_pct"] == pytest.approx(30)
+
+    # Mediane : (20 + 35) / 2 = 27,5 %
+    assert repartition.loc["causes externes", "mediane_pct"] == pytest.approx(27.5)
+
+
+def test_aucune_donnee_valide(df_sncf: pd.DataFrame) -> None:
+    """Ce test verifie si l'exception est bien levee si on a aucune observation exploitable"""
+    analyse = AnalyseCauses(df_sncf).filtrer_periode("2026-03", "2026-03")
+    with pytest.raises(AnalyseCausesErreur, match="Aucune observation"):
+        analyse.repartition_causes()
+
+
+def test_comparer_liaisons(df_sncf: pd.DataFrame) -> None:
+    """Les profils orientes A->B et B-A restent distincts."""
+    analyse = AnalyseCauses(df_sncf)
+    tableau = analyse.comparer_liaisons([("Yaoundé", "Douala"), ("Douala", "Yaoundé")])
+    assert tableau["liaison"].nunique() == 2
+    assert len(tableau) == 12
+
+
+def test_comparaison_nombres_invalides(df_sncf: pd.DataFrame) -> None:
+    """Ce test verifie qu'on leve bien un exception si on n'a pas entre 2 et 5 liaisons à comparer
+    ou si on n'a pas deux liaisons distinctes
+    """
+    analyse = AnalyseCauses(df_sncf)
+    with pytest.raises(AnalyseCausesErreur, match="entre 2 et 5"):
+        analyse.comparer_liaisons([("Yaoundé", "Douala")])
+    with pytest.raises(AnalyseCausesErreur, match="doivent être distinctes"):
+        analyse.comparer_liaisons([("Yaoundé", "Douala"), ("Yaoundé", "Douala")])
