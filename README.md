@@ -109,6 +109,50 @@ railinsight-sncf/
 uv run streamlit run app.py
 ```
 
+## Appeler les fonctions
+
+### Exécuter une requête SQL
+
+```python
+from projet_railinsight.moteur_sql import creer_connexion, executer_requete
+
+engine = creer_connexion()
+
+# Entrée
+requete = "SELECT COUNT(*) AS nombre_lignes FROM regularite_tgv WHERE service = ?"
+data = executer_requete(engine, requete, ["National"])
+
+# Sortie : un DataFrame Pandas (valeur illustrative)
+#    nombre_lignes
+# 0          12000
+```
+
+### Analyser la saisonnalité
+
+```python
+from projet_railinsight.saisonnalite import analyser_saisonnalite
+
+# Entrée : tous les paramètres
+resultats = analyser_saisonnalite(
+    engine=engine,
+    nettoyage=True,       # False pour les données brutes
+    service="National",  # None pour tous les services
+    annee_debut=2024,     # None pour aucune borne de début
+    annee_fin=2025,       # None pour aucune borne de fin
+)
+
+# Sortie : un dictionnaire
+# {
+#     "mensuel": DataFrame des totaux et taux par mois,
+#     "description": {"apercu": DataFrame, "statistiques": DataFrame},
+#     "saisonnalite": DataFrame des moyennes par mois,
+#     "correlations": DataFrame des corrélations,
+#     "regression": dictionnaire des résultats du modèle,
+# }
+
+print(resultats["mensuel"].head())
+```
+
 ## Tests et qualité
 
 ```text
