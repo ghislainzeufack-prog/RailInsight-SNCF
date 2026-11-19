@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -13,6 +14,8 @@ from projet_railinsight.circulations import (
     ErreurValidationCirculations,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @st.cache_data(show_spinner="Chargement des donnees TGV SNCF...")
 def charger_donnees_tgv() -> pd.DataFrame:
@@ -23,8 +26,8 @@ def charger_donnees_tgv() -> pd.DataFrame:
         df_commun = charger_donnees()
         if isinstance(df_commun, pd.DataFrame) and not df_commun.empty:
             return df_commun
-    except Exception:
-        pass
+    except (ImportError, OSError, ValueError) as err:
+        logger.warning("Repli sur le chargement local/distant : %s", err)
 
     chemins_candidats = [
         Path("data/processed/regularite-mensuelle-tgv-aqst.csv"),
@@ -65,7 +68,7 @@ def afficher_page_circulations() -> None:
     try:
         df_brut = charger_donnees_tgv()
         analyseur = AnalyseCirculations(df_brut)
-    except Exception as exc:
+    except (ErreurValidationCirculations, OSError, ValueError) as exc:
         st.error(f"Impossible de charger ou valider les donnees SNCF : {exc}")
         return
 
