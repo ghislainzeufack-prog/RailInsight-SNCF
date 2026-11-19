@@ -80,7 +80,7 @@ def afficher_page_circulations() -> None:
         return
 
     try:
-        df_brut = charger_donnees_tgv(str(FICHIER_CSV))
+        df_brut = charger_donnees_tgv()
         analyseur = AnalyseCirculations(df_brut)
     except (ErreurValidationCirculations, OSError, ValueError) as exc:
         st.error(f"Impossible de charger ou valider les donnees SNCF : {exc}")
