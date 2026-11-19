@@ -13,6 +13,8 @@ from projet_railinsight.circulations import (
     ErreurValidationCirculations,
 )
 
+FICHIER_CSV = Path("data/raw/regularite-mensuelle-tgv-aqst.csv")
+
 
 @st.cache_data(show_spinner="Chargement des donnees TGV SNCF...")
 def charger_donnees_tgv() -> pd.DataFrame:
@@ -71,10 +73,16 @@ def afficher_page_circulations() -> None:
             "L'analyse est **associative et descriptive** : elle ne demontre pas de lien de causalite."
         )
 
+    if not FICHIER_CSV.exists():
+        st.error(
+            "Fichier CSV introuvable. Verifiez que le fichier est bien dans data/raw/."
+        )
+        return
+
     try:
-        df_brut = charger_donnees_tgv()
+        df_brut = charger_donnees_tgv(str(FICHIER_CSV))
         analyseur = AnalyseCirculations(df_brut)
-    except Exception as exc:
+    except (ErreurValidationCirculations, OSError, ValueError) as exc:
         st.error(f"Impossible de charger ou valider les donnees SNCF : {exc}")
         return
 
