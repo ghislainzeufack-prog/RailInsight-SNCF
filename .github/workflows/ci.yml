@@ -58,5 +58,5 @@ jobs:
       # On verifie les problemes potentiels de securite
       # dans notre module et notre interface Streamlit
       - name: Securite du code
-        run: uv run ruff check src/projet_railinsight app.py --select S
+        run: uv run ruff check src/projet_railinsight --select S
 
