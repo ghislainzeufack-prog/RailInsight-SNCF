@@ -1,4 +1,4 @@
-﻿"""Module d'analyse des circulations, annulations et retards TGV.
+"""Module d'analyse des circulations, annulations et retards TGV.
 
 Ce module fournit la classe ``AnalyseCirculations`` ainsi que l'exception metier
 ``ErreurValidationCirculations`` pour valider, filtrer et agreger les donnees
@@ -56,7 +56,9 @@ class CompteurObservations:
 
     def __init__(self, nombre_initial: int = 0) -> None:
         if nombre_initial < 0:
-            raise ValueError("Le nombre initial d'observations ne peut pas etre negatif.")
+            raise ValueError(
+                "Le nombre initial d'observations ne peut pas etre negatif."
+            )
         self._total: int = int(nombre_initial)
 
     @property
@@ -98,19 +100,30 @@ class AnalyseCirculations:
 
     def __init__(self, donnees: pd.DataFrame) -> None:
         if not isinstance(donnees, pd.DataFrame):
-            logger.error("Entree invalide fournie a AnalyseCirculations : type=%s", type(donnees))
-            raise ErreurValidationCirculations("L'argument 'donnees' doit etre un pandas DataFrame.")
+            logger.error(
+                "Entree invalide fournie a AnalyseCirculations : type=%s", type(donnees)
+            )
+            raise ErreurValidationCirculations(
+                "L'argument 'donnees' doit etre un pandas DataFrame."
+            )
 
         copie = donnees.copy(deep=True).rename(columns=MAPPING_COLONNES_BRUTES)
 
-        colonnes_manquantes = [col for col in COLONNES_REQUISES if col not in copie.columns]
+        colonnes_manquantes = [
+            col for col in COLONNES_REQUISES if col not in copie.columns
+        ]
         if colonnes_manquantes:
             logger.error("Colonnes obligatoires manquantes : %s", colonnes_manquantes)
             raise ErreurValidationCirculations(
                 f"Colonnes obligatoires manquantes : {', '.join(colonnes_manquantes)}"
             )
 
-        for col_num in ("nb_train_prevu", "nb_annulation", "nb_train_retard_arrivee", "duree_moyenne"):
+        for col_num in (
+            "nb_train_prevu",
+            "nb_annulation",
+            "nb_train_retard_arrivee",
+            "duree_moyenne",
+        ):
             copie[col_num] = pd.to_numeric(copie[col_num], errors="coerce")
 
         copie["date"] = copie["date"].astype(str).str.strip()
@@ -149,7 +162,9 @@ class AnalyseCirculations:
             np.nan,
         )
         copie["taux_retard_arrivee"] = np.where(
-            copie["est_valide"] & (copie["trains_circules"] > 0) & copie["nb_train_retard_arrivee"].notna(),
+            copie["est_valide"]
+            & (copie["trains_circules"] > 0)
+            & copie["nb_train_retard_arrivee"].notna(),
             (copie["nb_train_retard_arrivee"] / copie["trains_circules"]) * 100.0,
             np.nan,
         )
@@ -173,7 +188,10 @@ class AnalyseCirculations:
             "annulations_superieures_au_prevu": int((df["trains_circules"] < 0).sum()),
             "trains_circules_nuls": int((df["trains_circules"] == 0).sum()),
             "retards_superieurs_aux_circules": int(
-                ((df["trains_circules"] >= 0) & (df["nb_train_retard_arrivee"] > df["trains_circules"])).sum()
+                (
+                    (df["trains_circules"] >= 0)
+                    & (df["nb_train_retard_arrivee"] > df["trains_circules"])
+                ).sum()
             ),
         }
 
@@ -188,7 +206,9 @@ class AnalyseCirculations:
         """Filtre les observations liaison-mois selon les criteres de l'utilisateur."""
         if volume_min < 0:
             logger.error("Filtre invalide : volume_min negatif (%s)", volume_min)
-            raise ErreurValidationCirculations("Le volume minimal ne peut pas etre negatif.")
+            raise ErreurValidationCirculations(
+                "Le volume minimal ne peut pas etre negatif."
+            )
 
         if date_debut and date_fin and date_debut > date_fin:
             logger.error("Filtre de periode invalide : %s > %s", date_debut, date_fin)
@@ -236,7 +256,9 @@ class AnalyseCirculations:
         total_retard = float(df["nb_train_retard_arrivee"].dropna().sum())
 
         taux_annul = (total_annul / total_prevu * 100.0) if total_prevu > 0 else np.nan
-        taux_retard = (total_retard / total_circules * 100.0) if total_circules > 0 else np.nan
+        taux_retard = (
+            (total_retard / total_circules * 100.0) if total_circules > 0 else np.nan
+        )
 
         return pd.DataFrame(
             [
@@ -259,7 +281,9 @@ class AnalyseCirculations:
     ) -> pd.DataFrame:
         """Agrege les indicateurs par liaison en sommant numerateurs et denominateurs."""
         if min_mois < 1:
-            raise ErreurValidationCirculations("Le parametre 'min_mois' doit etre superieur ou egal a 1.")
+            raise ErreurValidationCirculations(
+                "Le parametre 'min_mois' doit etre superieur ou egal a 1."
+            )
 
         df = self.filtrer() if donnees_filtrees is None else donnees_filtrees
         if df.empty:
@@ -279,7 +303,9 @@ class AnalyseCirculations:
                 ]
             )
 
-        agg = df.groupby(["liaison", "gare_depart", "gare_arrivee"], as_index=False).agg(
+        agg = df.groupby(
+            ["liaison", "gare_depart", "gare_arrivee"], as_index=False
+        ).agg(
             nb_mois=("date", "count"),
             nb_train_prevu=("nb_train_prevu", "sum"),
             nb_annulation=("nb_annulation", "sum"),
@@ -314,21 +340,29 @@ class AnalyseCirculations:
         """Calcule les correlations de Pearson et Spearman entre le volume prevu et un taux cible."""
         df = self.agreger_par_liaison() if donnees_table is None else donnees_table
         if cible not in ("taux_annulation", "taux_retard_arrivee"):
-            raise ErreurValidationCirculations(f"Indicateur cible non reconnu : {cible}")
+            raise ErreurValidationCirculations(
+                f"Indicateur cible non reconnu : {cible}"
+            )
 
         if df.empty or "nb_train_prevu" not in df.columns or cible not in df.columns:
             return {"n": 0, "pearson": np.nan, "spearman": np.nan}
 
         sous_df = df[["nb_train_prevu", cible]].dropna()
         n_obs = len(sous_df)
-        if n_obs < 3 or sous_df["nb_train_prevu"].nunique() < 2 or sous_df[cible].nunique() < 2:
+        if (
+            n_obs < 3
+            or sous_df["nb_train_prevu"].nunique() < 2
+            or sous_df[cible].nunique() < 2
+        ):
             return {"n": n_obs, "pearson": np.nan, "spearman": np.nan}
 
         rang_x = sous_df["nb_train_prevu"].rank(method="average")
         rang_y = sous_df[cible].rank(method="average")
         return {
             "n": n_obs,
-            "pearson": float(sous_df["nb_train_prevu"].corr(sous_df[cible], method="pearson")),
+            "pearson": float(
+                sous_df["nb_train_prevu"].corr(sous_df[cible], method="pearson")
+            ),
             "spearman": float(rang_x.corr(rang_y, method="pearson")),
         }
 
@@ -339,7 +373,9 @@ class AnalyseCirculations:
     ) -> pd.DataFrame:
         """Classe les liaisons agregees en 3 groupes de desserte (quantiles) pour l'Analyse B."""
         if volume_min_liaison < 0:
-            raise ErreurValidationCirculations("Le volume minimal par liaison ne peut pas etre negatif.")
+            raise ErreurValidationCirculations(
+                "Le volume minimal par liaison ne peut pas etre negatif."
+            )
 
         agg = self.agreger_par_liaison(donnees_filtrees)
         agg = agg[agg["nb_train_prevu"] >= volume_min_liaison].copy()
@@ -377,7 +413,12 @@ class AnalyseCirculations:
             agg = agg[agg["taux_annulation"] <= seuil_haut].copy()
 
         bornes = [0.0, 90.0, 150.0, 210.0, np.inf]
-        etiquettes = ["Court (< 1h30)", "Moyen (1h30 - 2h30)", "Long (2h30 - 3h30)", "Tres long (> 3h30)"]
+        etiquettes = [
+            "Court (< 1h30)",
+            "Moyen (1h30 - 2h30)",
+            "Long (2h30 - 3h30)",
+            "Tres long (> 3h30)",
+        ]
         agg["categorie_duree"] = pd.cut(
             agg["duree_moyenne"], bins=bornes, labels=etiquettes, right=False
         ).astype(str)

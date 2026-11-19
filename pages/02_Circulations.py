@@ -1,4 +1,4 @@
-﻿"""Page Streamlit : Analyse des circulations, annulations et retards TGV."""
+"""Page Streamlit : Analyse des circulations, annulations et retards TGV."""
 
 from __future__ import annotations
 
@@ -24,14 +24,19 @@ def charger_donnees_tgv(chemin: str) -> pd.DataFrame:
 
 def afficher_page_circulations() -> None:
     """Construit et affiche la page interactive Circulations & Annulations."""
-    st.title("Les liaisons davantage desservies connaissent-elles des taux d'annulation ou de retard differents ?")
+    st.title(
+        "Les liaisons davantage desservies connaissent-elles des taux d'annulation ou de retard differents ?"
+    )
     st.markdown(
         "Cette page examine la relation entre le **volume de circulations prevues** sur une liaison TGV "
         "et sa vulnerabilite aux **annulations** et aux **retards a l'arrivee**, a partir des donnees "
         "mensuelles ouvertes de la SNCF."
     )
 
-    with st.expander("Que mesurent exactement nos indicateurs ? (Methodologie & Limites)", expanded=False):
+    with st.expander(
+        "Que mesurent exactement nos indicateurs ? (Methodologie & Limites)",
+        expanded=False,
+    ):
         st.markdown(
             "- **Unite d'observation :** Une liaison orientee (`Gare de depart -> Gare d'arrivee`) suivie mensuellement.\n"
             "- **Taux d'annulation pondere (%) :** Somme des trains annules / Somme des trains prevus x 100.\n"
@@ -41,7 +46,9 @@ def afficher_page_circulations() -> None:
         )
 
     if not FICHIER_CSV.exists():
-        st.error("Fichier CSV introuvable. Verifiez que le fichier est bien dans data/raw/.")
+        st.error(
+            "Fichier CSV introuvable. Verifiez que le fichier est bien dans data/raw/."
+        )
         return
 
     try:
@@ -83,10 +90,16 @@ def afficher_page_circulations() -> None:
     indicateur_cible = st.sidebar.radio(
         "Indicateur principal a explorer",
         options=["taux_annulation", "taux_retard_arrivee"],
-        format_func=lambda x: "Taux d'annulation (%)" if x == "taux_annulation" else "Taux de retard a l'arrivee (%)",
+        format_func=lambda x: (
+            "Taux d'annulation (%)"
+            if x == "taux_annulation"
+            else "Taux de retard a l'arrivee (%)"
+        ),
     )
     libelle_indicateur = (
-        "Taux d'annulation (%)" if indicateur_cible == "taux_annulation" else "Taux de retard a l'arrivee (%)"
+        "Taux d'annulation (%)"
+        if indicateur_cible == "taux_annulation"
+        else "Taux de retard a l'arrivee (%)"
     )
 
     try:
@@ -108,9 +121,15 @@ def afficher_page_circulations() -> None:
     df_liaisons = analyseur.agreger_par_liaison(df_filtre)
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Observations (liaison-mois)", f"{int(resume_kpi['nb_observations']):,}".replace(",", " "))
+    col1.metric(
+        "Observations (liaison-mois)",
+        f"{int(resume_kpi['nb_observations']):,}".replace(",", " "),
+    )
     col2.metric("Liaisons couvertes", f"{int(resume_kpi['nb_liaisons'])}")
-    col3.metric("Trains prevus cumules", f"{int(resume_kpi['total_trains_prevus']):,}".replace(",", " "))
+    col3.metric(
+        "Trains prevus cumules",
+        f"{int(resume_kpi['total_trains_prevus']):,}".replace(",", " "),
+    )
     col4.metric(
         "Taux d'annulation pondere",
         f"{resume_kpi['taux_annulation_pondere']:.2f} %",
@@ -119,8 +138,12 @@ def afficher_page_circulations() -> None:
 
     st.divider()
 
-    st.subheader("1. Les axes a fort volume ont-ils un taux d'annulation different ? (Volet A)")
-    corr_stats = analyseur.calculer_correlations_volume(df_liaisons, cible=indicateur_cible)
+    st.subheader(
+        "1. Les axes a fort volume ont-ils un taux d'annulation different ? (Volet A)"
+    )
+    corr_stats = analyseur.calculer_correlations_volume(
+        df_liaisons, cible=indicateur_cible
+    )
 
     fig_scatter = px.scatter(
         df_liaisons,
@@ -157,7 +180,9 @@ def afficher_page_circulations() -> None:
 
     st.divider()
 
-    st.subheader("2. La dispersion des taux change-t-elle selon la categorie de desserte ? (Volet B)")
+    st.subheader(
+        "2. La dispersion des taux change-t-elle selon la categorie de desserte ? (Volet B)"
+    )
     df_groupes = analyseur.construire_groupes_volume(df_filtre)
     groupes_dispo = sorted(df_groupes["groupe_volume"].unique())
     groupes_retenus = st.multiselect(
@@ -189,9 +214,16 @@ def afficher_page_circulations() -> None:
 
     st.divider()
 
-    st.subheader("3. Les liaisons souvent annulees sont-elles aussi les plus en retard ? (Volet C)")
-    exclure_iqr = st.checkbox("Exclure les valeurs extremes d'annulation (regle de Tukey 1,5 x IQR)", value=False)
-    df_duree = analyseur.analyser_duree_et_robustesse(df_filtre, exclure_extremes_iqr=exclure_iqr)
+    st.subheader(
+        "3. Les liaisons souvent annulees sont-elles aussi les plus en retard ? (Volet C)"
+    )
+    exclure_iqr = st.checkbox(
+        "Exclure les valeurs extremes d'annulation (regle de Tukey 1,5 x IQR)",
+        value=False,
+    )
+    df_duree = analyseur.analyser_duree_et_robustesse(
+        df_filtre, exclure_extremes_iqr=exclure_iqr
+    )
 
     if df_duree.empty:
         st.info("Donnees insuffisantes pour afficher le croisement duree / retard.")
@@ -203,7 +235,12 @@ def afficher_page_circulations() -> None:
             color="categorie_duree",
             size="nb_train_prevu",
             hover_name="liaison",
-            hover_data=["nb_train_prevu", "trains_circules", "duree_moyenne", "nb_mois"],
+            hover_data=[
+                "nb_train_prevu",
+                "trains_circules",
+                "duree_moyenne",
+                "nb_mois",
+            ],
             labels={
                 "taux_annulation": "Taux d'annulation pondere (%)",
                 "taux_retard_arrivee": "Taux de retard a l'arrivee sur trains circules (%)",
@@ -231,13 +268,24 @@ def afficher_page_circulations() -> None:
             x="liaison",
             y=["taux_annulation", "taux_retard_arrivee"],
             barmode="group",
-            hover_data=["nb_train_prevu", "nb_annulation", "trains_circules", "nb_mois"],
-            labels={"value": "Taux pondere (%)", "liaison": "Liaison", "variable": "Indicateur"},
+            hover_data=[
+                "nb_train_prevu",
+                "nb_annulation",
+                "trains_circules",
+                "nb_mois",
+            ],
+            labels={
+                "value": "Taux pondere (%)",
+                "liaison": "Liaison",
+                "variable": "Indicateur",
+            },
             title="Comparaison directe des taux ponderes sur les liaisons selectionnees",
         )
         st.plotly_chart(fig_comp, use_container_width=True)
     else:
-        st.caption("Selectionnez au moins 2 liaisons ci-dessus pour afficher le graphique comparatif.")
+        st.caption(
+            "Selectionnez au moins 2 liaisons ci-dessus pour afficher le graphique comparatif."
+        )
 
     st.dataframe(df_liaisons, use_container_width=True)
 
