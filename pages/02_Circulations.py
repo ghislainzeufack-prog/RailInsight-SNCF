@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 import pandas as pd
@@ -14,37 +13,13 @@ from projet_railinsight.circulations import (
     ErreurValidationCirculations,
 )
 
-logger = logging.getLogger(__name__)
+FICHIER_CSV = Path("data/raw/regularite-mensuelle-tgv-aqst.csv")
 
 
 @st.cache_data(show_spinner="Chargement des donnees TGV SNCF...")
-def charger_donnees_tgv() -> pd.DataFrame:
-    """Charge le jeu de donnees via common_processing ou les chemins standards."""
-    try:
-        from projet_railinsight.common_processing import charger_donnees  # type: ignore[import-not-found]
-
-        df_commun = charger_donnees()
-        if isinstance(df_commun, pd.DataFrame) and not df_commun.empty:
-            return df_commun
-    except (ImportError, OSError, ValueError) as err:
-        logger.warning("Repli sur le chargement local/distant : %s", err)
-
-    chemins_candidats = [
-        Path("data/processed/regularite-mensuelle-tgv-aqst.csv"),
-        Path("data/raw/regularite-mensuelle-tgv-aqst.csv"),
-        Path("data/regularite-mensuelle-tgv-aqst.csv"),
-        Path("regularite-mensuelle-tgv-aqst.csv"),
-    ]
-    for chemin in chemins_candidats:
-        if chemin.exists():
-            sep = ";" if ";" in chemin.read_text(encoding="utf-8", errors="ignore")[:500] else ","
-            return pd.read_csv(chemin, sep=sep)
-
-    url_sncf = (
-        "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/"
-        "regularite-mensuelle-tgv-aqst/exports/csv?delimiter=%3B"
-    )
-    return pd.read_csv(url_sncf, sep=";")
+def charger_donnees_tgv(chemin: str) -> pd.DataFrame:
+    """Charge le fichier CSV brut SNCF."""
+    return pd.read_csv(chemin, sep=";")
 
 
 def afficher_page_circulations() -> None:
@@ -65,8 +40,12 @@ def afficher_page_circulations() -> None:
             "L'analyse est **associative et descriptive** : elle ne demontre pas de lien de causalite."
         )
 
+    if not FICHIER_CSV.exists():
+        st.error("Fichier CSV introuvable. Verifiez que le fichier est bien dans data/raw/.")
+        return
+
     try:
-        df_brut = charger_donnees_tgv()
+        df_brut = charger_donnees_tgv(str(FICHIER_CSV))
         analyseur = AnalyseCirculations(df_brut)
     except (ErreurValidationCirculations, OSError, ValueError) as exc:
         st.error(f"Impossible de charger ou valider les donnees SNCF : {exc}")
