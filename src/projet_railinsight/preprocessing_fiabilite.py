@@ -1,3 +1,5 @@
+"""Chargement, nettoyage et préparation des données mensuelles TGV de la SNCF."""
+
 from pathlib import Path
 
 import pandas as pd
