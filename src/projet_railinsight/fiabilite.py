@@ -1,3 +1,5 @@
+"""Calcul des indicateurs et analyse de la fiabilité des liaisons TGV."""
+
 import pandas as pd
 
 
