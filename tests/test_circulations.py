@@ -1,4 +1,4 @@
-﻿"""Tests unitaires complets pour le module projet_railinsight.circulations."""
+"""Tests unitaires complets pour le module projet_railinsight.circulations."""
 
 from __future__ import annotations
 
@@ -19,8 +19,20 @@ def df_exemple_sncf() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "date": ["2024-01", "2024-02", "2024-01", "2024-02", "2024-03"],
-            "gare_depart": ["PARIS LYON", "PARIS LYON", "PARIS EST", "PARIS MONTPARNASSE", "LILLE"],
-            "gare_arrivee": ["LYON PART DIEU", "LYON PART DIEU", "STRASBOURG", "BORDEAUX", "MARSEILLE"],
+            "gare_depart": [
+                "PARIS LYON",
+                "PARIS LYON",
+                "PARIS EST",
+                "PARIS MONTPARNASSE",
+                "LILLE",
+            ],
+            "gare_arrivee": [
+                "LYON PART DIEU",
+                "LYON PART DIEU",
+                "STRASBOURG",
+                "BORDEAUX",
+                "MARSEILLE",
+            ],
             "nb_train_prevu": [100, 20, 200, 50, 300],
             "nb_annulation": [10, 0, 5, 5, 30],
             "nb_train_retard_arrivee": [9, 2, 19, 4, 27],
@@ -57,7 +69,9 @@ def test_non_mutation_dataframe_source(df_exemple_sncf: pd.DataFrame) -> None:
     pd.testing.assert_frame_equal(df_exemple_sncf, copie_temoin)
 
 
-def test_agregation_ponderee_et_non_moyenne_simple(df_exemple_sncf: pd.DataFrame) -> None:
+def test_agregation_ponderee_et_non_moyenne_simple(
+    df_exemple_sncf: pd.DataFrame,
+) -> None:
     """Verifie la regle d'or du TP : 10/120 (8.333%) et non la moyenne simple (5%)."""
     analyse = AnalyseCirculations(df_exemple_sncf)
     agg = analyse.agreger_par_liaison()
@@ -115,7 +129,9 @@ def test_exceptions_entrees_invalides(df_exemple_sncf: pd.DataFrame) -> None:
     with pytest.raises(ErreurValidationCirculations, match="Indicateur cible"):
         analyse.calculer_correlations_volume(cible="colonne_inexistante")
 
-    with pytest.raises(ErreurValidationCirculations, match="volume minimal par liaison"):
+    with pytest.raises(
+        ErreurValidationCirculations, match="volume minimal par liaison"
+    ):
         analyse.construire_groupes_volume(volume_min_liaison=-1.0)
 
 
@@ -139,7 +155,9 @@ def test_analyses_a_b_c_et_cas_limites(df_exemple_sncf: pd.DataFrame) -> None:
     assert corr["n"] == 4
     assert -1.0 <= float(corr["spearman"]) <= 1.0
 
-    corr_petit = analyse.calculer_correlations_volume(donnees_table=sous_df, cible="taux_annulation")
+    corr_petit = analyse.calculer_correlations_volume(
+        donnees_table=sous_df, cible="taux_annulation"
+    )
     assert np.isnan(corr_petit["pearson"])
 
     # Volet B : groupes de volume (normal + volume homogene + vide)
