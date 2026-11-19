@@ -37,7 +37,7 @@ Les données brutes ne sont pas incluses par défaut dans le dépôt. Les conven
 - **Matplotlib** : graphiques
 - **Seaborn** : Visualisation des distributions et correlations
 - **nb_format** : Affichage des graphiques interactifs Plotly dans les notebooks Jupyter
-- **Scikit-learn** : Détection de certaines anomalies 
+- **Scikit-learn** : Détection de certaines anomalies
 - **Pandas** : préparation et analyse exploratoire des données.
 - **Plotly** et **Streamlit** : visualisations interactives et application web.
 - **pytest** et **pytest-cov** : tests unitaires et mesure de couverture.
