@@ -1,6 +1,6 @@
 # Analyse de la fiabilité des liaisons TGV
 
-**Projet :** RailInsight-SNCF  
+**Projet :** RailInsight-SNCF\
 **Statut :** Cadrage initial — V0.2
 
 ## 1. Question de recherche

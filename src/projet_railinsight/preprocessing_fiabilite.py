@@ -1,4 +1,4 @@
-"""Chargement, nettoyage et préparation des données mensuelles TGV de la SNCF."""
+"""Préparation des données pour l’analyse de fiabilité."""
 
 from pathlib import Path
 

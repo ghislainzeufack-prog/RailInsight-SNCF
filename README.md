@@ -114,14 +114,72 @@ railinsight-sncf/
 uv run streamlit run app.py
 ```
 
-## Tests et qualité
+Ouvrir **Saisonnalite** dans le menu pour filtrer les données, afficher les
+graphiques et télécharger les résultats en CSV.
 
-```text
-uv run pytest
-uv run pytest --cov=railinsight_sncf --cov-report=term-missing
+## Appeler les fonctions
+
+Après clonage et `uv sync`, la connexion est prête : le compte de lecture est inclus dans le projet. Aucun fichier est à créer.
+
+### Exécuter une requête SQL
+
+```python
+from projet_railinsight.moteur_sql import creer_connexion, executer_requete
+
+engine = creer_connexion()
+
+# Entrée exemple
+requete = "SELECT COUNT(*) AS nombre_lignes FROM regularite_tgv WHERE service = ?"
+data = executer_requete(engine, requete, ["National"])
+
+# Sortie : un DataFrame Pandas (valeur illustrative)
+#    nombre_lignes
+# 0          12000
 ```
 
-La cible du projet est une **couverture d'au moins 90 %** du code applicatif mesuré. Les contrôles de style, la présence de docstrings, les tests et la couverture sont automatisés avec **GitHub Actions**.
+### Analyser la saisonnalité
+
+```python
+from projet_railinsight.saisonnalite import analyser_saisonnalite
+
+# Entrée : tous les paramètres
+resultats = analyser_saisonnalite(
+    engine=engine,
+    nettoyage=True,  # False pour les données brutes
+    service="National",  # None pour tous les services, International pour les trains internationaux
+    annee_debut=2024,  # None pour aucune borne de début
+    annee_fin=2025,  # None pour aucune borne de fin
+)
+
+# Sortie : un dictionnaire
+# {
+#     "mensuel": DataFrame des totaux et taux par mois,
+#     "description": {"apercu": DataFrame, "statistiques": DataFrame},
+#     "saisonnalite": DataFrame des moyennes par mois,
+#     "correlations": DataFrame des corrélations,
+#     "regression": dictionnaire des résultats du modèle,
+# }
+```
+
+## Tests et qualité
+
+La CI [Tests Python](.github/workflows/ci.yml) lance les tests et affiche leur
+couverture à chaque push et pull request sur GitHub, avec Python 3.14 et `uv`.
+Les résultats sont disponibles dans l’onglet **Actions**. Un lancement manuel
+est également possible avec **Run workflow** une fois le workflow présent sur
+la branche par défaut.
+
+Les tests de saisonnalité utilisent une base SQLite temporaire : aucun accès
+au VPS n’est nécessaire.
+
+Pour lancer les mêmes vérifications localement :
+
+```bash
+uv sync --locked --dev
+uv run --no-sync pytest tests/ -v --cov=projet_railinsight.saisonnalite --cov=projet_railinsight.moteur_sql --cov-report=term-missing
+```
+
+Configuration basée sur le [guide officiel uv pour GitHub Actions](https://docs.astral.sh/uv/guides/integration/github/).
 
 ## Documentation
 
