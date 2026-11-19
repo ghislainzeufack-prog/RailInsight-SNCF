@@ -4,6 +4,8 @@ name: CI RailInsight
 # On lance les verifications apres chaque push et Pull Request
 on:
   push:
+    branches:
+      - main
   pull_request:
   workflow_dispatch:
 
@@ -57,3 +59,4 @@ jobs:
       # dans notre module et notre interface Streamlit
       - name: Securite du code
         run: uv run ruff check src/projet_railinsight app.py --select S
+
