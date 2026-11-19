@@ -1,4 +1,3 @@
-
 """Tests du chargement, de la validation et de l'agrégation des données TGV."""
 
 import pandas as pd
@@ -60,10 +59,7 @@ def test_calculer_taux_mensuel():
 
     # Janvier : 50 trains en retard sur 300 réalisés
     taux_janvier = 100 * 50 / 300
-    assert (
-        abs(resultat.loc["2026-01-01", "taux_retard_15min"] - taux_janvier)
-        < 1e-10
-    )
+    assert abs(resultat.loc["2026-01-01", "taux_retard_15min"] - taux_janvier) < 1e-10
 
     # Février : la ligne sans circulation réalisée est exclue
     assert resultat.loc["2026-02-01", "taux_retard_15min"] == 10.0
@@ -77,9 +73,7 @@ def test_calculer_taux_mensuel_avec_date_parsed():
     df = pd.DataFrame(
         {
             "Date": ["2026-01", "date-invalide", "2026-01"],
-            "Date_parsed": pd.to_datetime(
-                ["2026-01", None, "2026-01"]
-            ),
+            "Date_parsed": pd.to_datetime(["2026-01", None, "2026-01"]),
             "Nombre de circulations prévues": [100, 200, 50],
             "Nombre de trains annulés": [0, 0, 0],
             "Nombre trains en retard > 15min": [10, 40, 10],
@@ -93,10 +87,7 @@ def test_calculer_taux_mensuel_avec_date_parsed():
 
     # Janvier : 20 retards parmi 150 trains réalisés
     taux_attendu = 100 * 20 / 150
-    assert (
-        abs(resultat.loc["2026-01-01", "taux_retard_15min"] - taux_attendu)
-        < 1e-10
-    )
+    assert abs(resultat.loc["2026-01-01", "taux_retard_15min"] - taux_attendu) < 1e-10
 
     # Le DataFrame original reste inchangé
     assert df.loc[1, "Date"] == "date-invalide"
@@ -127,8 +118,7 @@ def test_charger_donnees_tgv_sans_date(tmp_path):
     chemin = tmp_path / "tgv_sans_date.csv"
 
     chemin.write_text(
-        "Nombre de circulations prévues;Nombre de trains annulés\n"
-        "100;5\n",
+        "Nombre de circulations prévues;Nombre de trains annulés\n100;5\n",
         encoding="utf-8",
     )
 

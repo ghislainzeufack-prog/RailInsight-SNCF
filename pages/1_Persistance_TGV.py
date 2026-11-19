@@ -205,7 +205,6 @@ else:
     )
 
 
-
 # ---------------------------------------------------------
 # 4. Prévisions et comparaison
 # ---------------------------------------------------------
@@ -315,10 +314,7 @@ fig_previsions.add_trace(
         name="Taux observé",
         line={"color": "#2563EB", "width": 3},
         marker={"size": 7},
-        hovertemplate=(
-            "Mois : %{x|%m/%Y}<br>"
-            "Observé : %{y:.2f} %<extra></extra>"
-        ),
+        hovertemplate=("Mois : %{x|%m/%Y}<br>Observé : %{y:.2f} %<extra></extra>"),
     )
 )
 
@@ -330,10 +326,7 @@ fig_previsions.add_trace(
         name="Prévision AR(1)",
         line={"color": "#EA580C", "width": 2, "dash": "dash"},
         marker={"size": 6},
-        hovertemplate=(
-            "Mois : %{x|%m/%Y}<br>"
-            "AR(1) : %{y:.2f} %<extra></extra>"
-        ),
+        hovertemplate=("Mois : %{x|%m/%Y}<br>AR(1) : %{y:.2f} %<extra></extra>"),
     )
 )
 
@@ -345,10 +338,7 @@ fig_previsions.add_trace(
         name="Prévision naïve",
         line={"color": "#16A34A", "width": 2, "dash": "dot"},
         marker={"size": 6},
-        hovertemplate=(
-            "Mois : %{x|%m/%Y}<br>"
-            "Naïf : %{y:.2f} %<extra></extra>"
-        ),
+        hovertemplate=("Mois : %{x|%m/%Y}<br>Naïf : %{y:.2f} %<extra></extra>"),
     )
 )
 
@@ -382,7 +372,6 @@ fig_previsions.update_yaxes(
 st.plotly_chart(fig_previsions, width="stretch")
 
 
-
 # ---------------------------------------------------------
 # Performances des modèles
 # ---------------------------------------------------------
@@ -414,7 +403,6 @@ st.caption(
     "MAE et RMSE sont exprimées en points de pourcentage. "
     "Une valeur plus faible indique une meilleure précision."
 )
-
 
 
 # ---------------------------------------------------------
@@ -463,7 +451,4 @@ st.warning(
     "et restent dépendants de la période étudiée."
 )
 
-st.caption(
-    "Projet RailInsight-SNCF — "
-    "Analyse de la persistance des retards TGV"
-)
+st.caption("Projet RailInsight-SNCF — Analyse de la persistance des retards TGV")

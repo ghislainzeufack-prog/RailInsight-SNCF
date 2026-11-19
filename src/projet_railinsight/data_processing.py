@@ -1,4 +1,3 @@
-
 """Préparation des données de ponctualité TGV."""
 
 from pathlib import Path
@@ -47,19 +46,14 @@ def preparer_donnees_retards(df: pd.DataFrame) -> pd.DataFrame:
     resultat["Trains réalisés"] = prevus - annules
 
     resultat["effectifs_coherents"] = (
-        (prevus >= 0)
-        & (annules >= 0)
-        & (annules <= prevus)
+        (prevus >= 0) & (annules >= 0) & (annules <= prevus)
     )
 
     resultat["taux_retard_valide"] = (
         resultat["effectifs_coherents"]
         & (resultat["Trains réalisés"] > 0)
         & (resultat["Nombre trains en retard > 15min"] >= 0)
-        & (
-            resultat["Nombre trains en retard > 15min"]
-            <= resultat["Trains réalisés"]
-        )
+        & (resultat["Nombre trains en retard > 15min"] <= resultat["Trains réalisés"])
     )
 
     resultat["taux_retard_15min"] = np.where(
@@ -103,9 +97,7 @@ def calculer_taux_mensuel(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     mensuel["taux_retard_15min"] = (
-        100
-        * mensuel["trains_retardes"]
-        / mensuel["trains_realises"]
+        100 * mensuel["trains_retardes"] / mensuel["trains_realises"]
     )
 
     return mensuel
