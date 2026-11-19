@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+
+<html lang="fr" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>projet_railinsight.saisonnalite &#8212; Documentation RailInsight-SNCF 0.1.0</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=27fed22d" />
+    <script src="../../_static/documentation_options.js?v=897fae25"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/translations.js?v=e6b791cb"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Recherche" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Code source de projet_railinsight.saisonnalite</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Analyse de la saisonnalité, dans l’ordre du notebook Analyse 1."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">scipy</span><span class="w"> </span><span class="kn">import</span> <span class="n">stats</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sqlalchemy.engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">Engine</span>
+
+<span class="k">if</span> <span class="n">__package__</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.moteur_sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">executer_requete</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">moteur_sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">executer_requete</span>
+
+
+<span class="n">INDICATEURS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"total_annulation"</span><span class="p">,</span>
+    <span class="s2">"total_retard_depart"</span><span class="p">,</span>
+    <span class="s2">"total_retard_arrivee"</span><span class="p">,</span>
+<span class="p">]</span>
+
+
+<span class="c1"># %% I. Base de données</span>
+
+
+<div class="viewcode-block" id="charger_donnees_mensuelles">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.saisonnalite.charger_donnees_mensuelles">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">charger_donnees_mensuelles</span><span class="p">(</span>
+    <span class="n">engine</span><span class="p">:</span> <span class="n">Engine</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">nettoyage</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">service</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="s2">"National"</span><span class="p">,</span>
+    <span class="n">annee_debut</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">annee_fin</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Lire les totaux mensuels et ajouter année, mois et pourcentages.</span>
+
+<span class="sd">    Les dates SQL sont au format YYYY-MM. Les bornes sont inclusives.</span>
+<span class="sd">    service=None sélectionne tous les services. En mode nettoyage, la lecture</span>
+<span class="sd">    utilise la vue regularite_tgv_clean créée avec les règles du notebook.</span>
+
+<span class="sd">    Les taux utilisent uniquement les lignes dont les deux valeurs sont</span>
+<span class="sd">    connues, avec un volume prévu strictement positif. Le taux de perturbation</span>
+<span class="sd">    additionne annulations et retards au départ, jamais départ et arrivée.</span>
+<span class="sd">    Les valeurs inconnues ne sont pas remplacées par zéro.</span>
+<span class="sd">    """</span>
+    <span class="k">for</span> <span class="n">annee</span> <span class="ow">in</span> <span class="p">(</span><span class="n">annee_debut</span><span class="p">,</span> <span class="n">annee_fin</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">annee</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">annee</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">int</span> <span class="ow">or</span> <span class="ow">not</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="n">annee</span> <span class="o">&lt;=</span> <span class="mi">9999</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Les années doivent être des entiers entre 1 et 9999."</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">annee_debut</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">annee_fin</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">annee_debut</span> <span class="o">&gt;</span> <span class="n">annee_fin</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"annee_debut doit être inférieure ou égale à annee_fin."</span><span class="p">)</span>
+
+    <span class="n">table</span> <span class="o">=</span> <span class="s2">"regularite_tgv_clean"</span> <span class="k">if</span> <span class="n">nettoyage</span> <span class="k">else</span> <span class="s2">"regularite_tgv"</span>
+
+    <span class="c1"># Le nom de table provient des deux constantes ci-dessus, jamais de la saisie.</span>
+    <span class="n">requete</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"""</span>
+<span class="s2">        WITH donnees AS (</span>
+<span class="s2">            SELECT *,</span>
+<span class="s2">                nb_circulation_prevues &gt; 0</span>
+<span class="s2">                    AND nb_annulation IS NOT NULL AS annulation_connue,</span>
+<span class="s2">                nb_circulation_prevues &gt; 0</span>
+<span class="s2">                    AND nb_train_depart_retard IS NOT NULL AS depart_connu,</span>
+<span class="s2">                nb_circulation_prevues &gt; 0</span>
+<span class="s2">                    AND nb_train_retard_arrivee IS NOT NULL AS arrivee_connue</span>
+<span class="s2">            FROM </span><span class="si">{</span><span class="n">table</span><span class="si">}</span>
+<span class="s2">            WHERE (CAST(? AS TEXT) IS NULL OR service = ?)</span>
+<span class="s2">              AND date BETWEEN ? AND ?</span>
+<span class="s2">        )</span>
+<span class="s2">        SELECT</span>
+<span class="s2">            date,</span>
+<span class="s2">            SUM(nb_annulation) AS total_annulation,</span>
+<span class="s2">            SUM(nb_train_depart_retard) AS total_retard_depart,</span>
+<span class="s2">            SUM(nb_train_retard_arrivee) AS total_retard_arrivee,</span>
+<span class="s2">            SUM(nb_circulation_prevues) AS total_circulations_prevues,</span>
+<span class="s2">            COUNT(*) AS nb_lignes,</span>
+<span class="s2">            COUNT(*) - COUNT(nb_annulation) AS nb_annulations_manquantes,</span>
+
+<span class="s2">            -- Pour chaque taux, garder les mêmes lignes au numérateur</span>
+<span class="s2">            -- et au dénominateur. NULLIF évite la division par zéro.</span>
+<span class="s2">            100.0 * SUM(nb_annulation) FILTER (WHERE annulation_connue)</span>
+<span class="s2">                / NULLIF(SUM(nb_circulation_prevues)</span>
+<span class="s2">                    FILTER (WHERE annulation_connue), 0) AS taux_annulation,</span>
+
+<span class="s2">            100.0 * SUM(nb_train_depart_retard) FILTER (WHERE depart_connu)</span>
+<span class="s2">                / NULLIF(SUM(nb_circulation_prevues)</span>
+<span class="s2">                    FILTER (WHERE depart_connu), 0) AS taux_retard_depart,</span>
+
+<span class="s2">            100.0 * SUM(nb_train_retard_arrivee) FILTER (WHERE arrivee_connue)</span>
+<span class="s2">                / NULLIF(SUM(nb_circulation_prevues)</span>
+<span class="s2">                    FILTER (WHERE arrivee_connue), 0) AS taux_retard_arrivee,</span>
+
+<span class="s2">            100.0 * SUM(nb_annulation + nb_train_depart_retard)</span>
+<span class="s2">                    FILTER (WHERE annulation_connue AND depart_connu)</span>
+<span class="s2">                / NULLIF(SUM(nb_circulation_prevues)</span>
+<span class="s2">                    FILTER (WHERE annulation_connue AND depart_connu), 0)</span>
+<span class="s2">                AS taux_perturbation_depart</span>
+<span class="s2">        FROM donnees</span>
+<span class="s2">        GROUP BY date</span>
+<span class="s2">        ORDER BY date;</span>
+<span class="s2">    """</span>  <span class="c1"># noqa: S608</span>
+
+    <span class="n">parametres</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">service</span><span class="p">,</span>
+        <span class="n">service</span><span class="p">,</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">annee_debut</span><span class="si">:</span><span class="s2">04d</span><span class="si">}</span><span class="s2">-01"</span> <span class="k">if</span> <span class="n">annee_debut</span> <span class="k">else</span> <span class="s2">"0001-01"</span><span class="p">,</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">annee_fin</span><span class="si">:</span><span class="s2">04d</span><span class="si">}</span><span class="s2">-12"</span> <span class="k">if</span> <span class="n">annee_fin</span> <span class="k">else</span> <span class="s2">"9999-12"</span><span class="p">,</span>
+    <span class="p">]</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">executer_requete</span><span class="p">(</span><span class="n">engine</span><span class="p">,</span> <span class="n">requete</span><span class="p">,</span> <span class="n">parametres</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">preparer_donnees</span><span class="p">(</span><span class="n">data</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="preparer_donnees">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.saisonnalite.preparer_donnees">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">preparer_donnees</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Convertir la date et extraire l’année et le mois."""</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">data</span><span class="p">[</span><span class="s2">"date"</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"date"</span><span class="p">],</span> <span class="nb">format</span><span class="o">=</span><span class="s2">"%Y-%m"</span><span class="p">)</span>
+    <span class="n">data</span><span class="p">[</span><span class="s2">"annee"</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">"date"</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">year</span>
+    <span class="n">data</span><span class="p">[</span><span class="s2">"mois"</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">"date"</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">month</span>
+    <span class="k">return</span> <span class="n">data</span></div>
+
+
+
+<span class="c1"># %% I.1. Description</span>
+
+
+<div class="viewcode-block" id="decrire_donnees">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.saisonnalite.decrire_donnees">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">decrire_donnees</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Aperçu et statistiques descriptives des données mensuelles."""</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"apercu"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">head</span><span class="p">(),</span> <span class="s2">"statistiques"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">describe</span><span class="p">()}</span></div>
+
+
+
+<span class="c1"># %% I.2. Visualisation de corrélation et comparaison par année</span>
+
+
+<div class="viewcode-block" id="tracer_evolution">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.saisonnalite.tracer_evolution">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">tracer_evolution</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Courbes des annulations et retards au fil du temps."""</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.figure</span><span class="w"> </span><span class="kn">import</span> <span class="n">Figure</span>
+
+    <span class="n">figure</span> <span class="o">=</span> <span class="n">Figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">9</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">axe</span><span class="p">,</span> <span class="n">indicateur</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">figure</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">INDICATEURS</span><span class="p">):</span>
+        <span class="n">axe</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"date"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="n">indicateur</span><span class="p">])</span>
+        <span class="n">axe</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="n">indicateur</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s2">"Date"</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s2">"Nombre de trains"</span><span class="p">)</span>
+        <span class="n">axe</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">alpha</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
+    <span class="n">figure</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">figure</span></div>
+
+
+
+<div class="viewcode-block" id="tracer_comparaison_annuelle">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.saisonnalite.tracer_comparaison_annuelle">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">tracer_comparaison_annuelle</span><span class="p">(</span>
+    <span class="n">data</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">indicateur</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"total_annulation"</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Comparer les mois de chaque année, comme dans le notebook."""</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.figure</span><span class="w"> </span><span class="kn">import</span> <span class="n">Figure</span>
+
+    <span class="k">if</span> <span class="n">indicateur</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">INDICATEURS</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Choisir un indicateur parmi </span><span class="si">{</span><span class="n">INDICATEURS</span><span class="si">}</span><span class="s2">."</span><span class="p">)</span>
+    <span class="n">figure</span> <span class="o">=</span> <span class="n">Figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">axe</span> <span class="o">=</span> <span class="n">figure</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">annee</span><span class="p">,</span> <span class="n">groupe</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"annee"</span><span class="p">):</span>
+        <span class="c1"># Les mois absents restent des trous dans les courbes.</span>
+        <span class="n">valeurs</span> <span class="o">=</span> <span class="n">groupe</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s2">"mois"</span><span class="p">)[</span><span class="n">indicateur</span><span class="p">]</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">13</span><span class="p">))</span>
+        <span class="n">axe</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">valeurs</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">valeurs</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">annee</span><span class="p">))</span>
+    <span class="n">axe</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="n">indicateur</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s2">"Mois"</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s2">"Nombre de trains"</span><span class="p">)</span>
+    <span class="n">axe</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">13</span><span class="p">))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">data</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+        <span class="n">axe</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Année"</span><span class="p">)</span>
+    <span class="n">axe</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">alpha</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">figure</span></div>
+
+
+
+<span class="c1"># %% I.3. Tableau de corrélation</span>
+
+
+<div class="viewcode-block" id="calculer_correlations">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.saisonnalite.calculer_correlations">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">calculer_correlations</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Matrice de corrélation, sans la colonne date."""</span>
+    <span class="k">return</span> <span class="n">data</span><span class="p">[[</span><span class="s2">"annee"</span><span class="p">,</span> <span class="s2">"mois"</span><span class="p">,</span> <span class="o">*</span><span class="n">INDICATEURS</span><span class="p">]]</span><span class="o">.</span><span class="n">corr</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="tracer_correlations">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.saisonnalite.tracer_correlations">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">tracer_correlations</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Heatmap de la matrice de corrélation."""</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">seaborn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sns</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.figure</span><span class="w"> </span><span class="kn">import</span> <span class="n">Figure</span>
+
+    <span class="n">figure</span> <span class="o">=</span> <span class="n">Figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">heatmap</span><span class="p">(</span>
+        <span class="n">calculer_correlations</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">annot</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">vmin</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">vmax</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">cmap</span><span class="o">=</span><span class="s2">"coolwarm"</span><span class="p">,</span>
+        <span class="n">ax</span><span class="o">=</span><span class="n">figure</span><span class="o">.</span><span class="n">subplots</span><span class="p">(),</span>
+    <span class="p">)</span>
+    <span class="n">figure</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">figure</span></div>
+
+
+
+<span class="c1"># %% II. Régression linéaire multiple</span>
+
+
+<div class="viewcode-block" id="calculer_regression">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.saisonnalite.calculer_regression">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">calculer_regression</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Estimer retards au départ ~ constante + mois + annulations.</span>
+
+<span class="sd">    Reproduit le modèle exploratoire du notebook (mois numérique, non cyclique).</span>
+<span class="sd">    Les lignes incomplètes sont exclues. Les résultats décrivent des associations,</span>
+<span class="sd">    sans établir de causalité. Les erreurs standards supposent des résidus iid.</span>
+<span class="sd">    """</span>
+    <span class="n">valeurs</span> <span class="o">=</span> <span class="n">data</span><span class="p">[[</span><span class="s2">"mois"</span><span class="p">,</span> <span class="s2">"total_annulation"</span><span class="p">,</span> <span class="s2">"total_retard_depart"</span><span class="p">]]</span>
+    <span class="n">valeurs</span> <span class="o">=</span> <span class="n">valeurs</span><span class="o">.</span><span class="n">replace</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">valeurs</span><span class="p">)),</span> <span class="n">valeurs</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)]</span>
+    <span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">valeurs</span><span class="p">[</span><span class="s2">"total_retard_depart"</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">3</span> <span class="ow">or</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">matrix_rank</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">"disponible"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s2">"raison"</span><span class="p">:</span> <span class="p">(</span>
+                <span class="s2">"Il faut plus de 3 observations complètes "</span>
+                <span class="s2">"et des variables non colinéaires."</span>
+            <span class="p">),</span>
+        <span class="p">}</span>
+
+    <span class="n">beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">rcond</span><span class="o">=</span><span class="kc">None</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">predictions</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="n">beta</span>
+    <span class="n">residus</span> <span class="o">=</span> <span class="n">y</span> <span class="o">-</span> <span class="n">predictions</span>
+
+    <span class="n">ddl</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="o">-</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># La constante est déjà incluse dans X.</span>
+    <span class="n">covariance</span> <span class="o">=</span> <span class="p">(</span><span class="n">residus</span> <span class="o">@</span> <span class="n">residus</span> <span class="o">/</span> <span class="n">ddl</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">pinv</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">@</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">pinv</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="n">se</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">covariance</span><span class="p">),</span> <span class="mi">0</span><span class="p">))</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="n">beta</span><span class="p">,</span> <span class="n">se</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span> <span class="n">where</span><span class="o">=</span><span class="n">se</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">coefficients</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+        <span class="p">{</span>
+            <span class="s2">"coefficient"</span><span class="p">:</span> <span class="n">beta</span><span class="p">,</span>
+            <span class="s2">"erreur_standard"</span><span class="p">:</span> <span class="n">se</span><span class="p">,</span>
+            <span class="s2">"t"</span><span class="p">:</span> <span class="n">t</span><span class="p">,</span>
+            <span class="s2">"p_value"</span><span class="p">:</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">stats</span><span class="o">.</span><span class="n">t</span><span class="o">.</span><span class="n">sf</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">t</span><span class="p">),</span> <span class="n">ddl</span><span class="p">),</span>
+        <span class="p">},</span>
+        <span class="n">index</span><span class="o">=</span><span class="p">[</span><span class="s2">"constante"</span><span class="p">,</span> <span class="s2">"mois"</span><span class="p">,</span> <span class="s2">"annulations"</span><span class="p">],</span>
+    <span class="p">)</span>
+
+    <span class="n">observations</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">valeurs</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="p">[</span><span class="s2">"date"</span><span class="p">]]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">observations</span><span class="p">[</span><span class="s2">"observe"</span><span class="p">]</span> <span class="o">=</span> <span class="n">y</span>
+    <span class="n">observations</span><span class="p">[</span><span class="s2">"prediction"</span><span class="p">]</span> <span class="o">=</span> <span class="n">predictions</span>
+    <span class="n">observations</span><span class="p">[</span><span class="s2">"residu"</span><span class="p">]</span> <span class="o">=</span> <span class="n">residus</span>
+
+    <span class="n">sst</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">y</span> <span class="o">-</span> <span class="n">y</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"disponible"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"coefficients"</span><span class="p">:</span> <span class="n">coefficients</span><span class="p">,</span>
+        <span class="s2">"observations"</span><span class="p">:</span> <span class="n">observations</span><span class="p">,</span>
+        <span class="s2">"n_observations"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">y</span><span class="p">),</span>
+        <span class="s2">"ddl"</span><span class="p">:</span> <span class="n">ddl</span><span class="p">,</span>
+        <span class="s2">"r2"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">residus</span> <span class="o">@</span> <span class="n">residus</span> <span class="o">/</span> <span class="n">sst</span><span class="p">)</span> <span class="k">if</span> <span class="n">sst</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="s2">"nan"</span><span class="p">),</span>
+    <span class="p">}</span></div>
+
+
+
+<span class="c1"># %% II.1. Histogramme des résidus</span>
+
+
+<div class="viewcode-block" id="tracer_residus">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.saisonnalite.tracer_residus">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">tracer_residus</span><span class="p">(</span><span class="n">regression</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Histogramme des résidus observés moins prédits."""</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.figure</span><span class="w"> </span><span class="kn">import</span> <span class="n">Figure</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">regression</span><span class="p">[</span><span class="s2">"disponible"</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">regression</span><span class="p">[</span><span class="s2">"raison"</span><span class="p">])</span>
+    <span class="n">figure</span> <span class="o">=</span> <span class="n">Figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+    <span class="n">axe</span> <span class="o">=</span> <span class="n">figure</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+    <span class="n">axe</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">regression</span><span class="p">[</span><span class="s2">"observations"</span><span class="p">][</span><span class="s2">"residu"</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+    <span class="n">axe</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Distribution des résidus"</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s2">"Résidu"</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s2">"Effectif"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">figure</span></div>
+
+
+
+<span class="c1"># %% Utilisation dans Streamlit</span>
+
+
+<div class="viewcode-block" id="analyser_saisonnalite">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.saisonnalite.analyser_saisonnalite">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">analyser_saisonnalite</span><span class="p">(</span><span class="n">engine</span><span class="p">:</span> <span class="n">Engine</span><span class="p">,</span> <span class="o">**</span><span class="n">filtres</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Fonction principale : données SQL, saisonnalité, corrélations, régression.</span>
+
+<span class="sd">    Accepte les mêmes filtres que charger_donnees_mensuelles. Les DataFrames</span>
+<span class="sd">    renvoyés peuvent être affichés avec st.dataframe, st.line_chart ou Plotly.</span>
+<span class="sd">    La saisonnalité est la moyenne des totaux de chaque mois sur les années</span>
+<span class="sd">    sélectionnées ; elle dépend donc du volume de circulation de ces années.</span>
+<span class="sd">    """</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">charger_donnees_mensuelles</span><span class="p">(</span><span class="n">engine</span><span class="p">,</span> <span class="o">**</span><span class="n">filtres</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"mensuel"</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span>
+        <span class="s2">"description"</span><span class="p">:</span> <span class="n">decrire_donnees</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+        <span class="s2">"saisonnalite"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"mois"</span><span class="p">)[</span><span class="n">INDICATEURS</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span>
+        <span class="s2">"correlations"</span><span class="p">:</span> <span class="n">calculer_correlations</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+        <span class="s2">"regression"</span><span class="p">:</span> <span class="n">calculer_regression</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+    <span class="p">}</span></div>
+
+
+
+<span class="c1"># %% Test manuel</span>
+
+
+<div class="viewcode-block" id="tester_analyse">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.saisonnalite.tester_analyse">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">tester_analyse</span><span class="p">(</span><span class="n">engine</span><span class="p">:</span> <span class="n">Engine</span><span class="p">,</span> <span class="o">**</span><span class="n">filtres</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Tester la connexion SQL et afficher les résultats de l’analyse."""</span>
+    <span class="n">resultats</span> <span class="o">=</span> <span class="n">analyser_saisonnalite</span><span class="p">(</span><span class="n">engine</span><span class="p">,</span> <span class="o">**</span><span class="n">filtres</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">resultats</span><span class="p">[</span><span class="s2">"mensuel"</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Aucune donnée trouvée pour les filtres sélectionnés."</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Connexion SQL OK — </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="si">}</span><span class="s2"> mois chargés."</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">1. Aperçu des données"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">resultats</span><span class="p">[</span><span class="s2">"description"</span><span class="p">][</span><span class="s2">"apercu"</span><span class="p">]</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">2. Saisonnalité"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">resultats</span><span class="p">[</span><span class="s2">"saisonnalite"</span><span class="p">])</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">3. Corrélations"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">resultats</span><span class="p">[</span><span class="s2">"correlations"</span><span class="p">])</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">4. Régression"</span><span class="p">)</span>
+    <span class="n">regression</span> <span class="o">=</span> <span class="n">resultats</span><span class="p">[</span><span class="s2">"regression"</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">regression</span><span class="p">[</span><span class="s2">"disponible"</span><span class="p">]:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">regression</span><span class="p">[</span><span class="s2">"coefficients"</span><span class="p">])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"R² = </span><span class="si">{</span><span class="n">regression</span><span class="p">[</span><span class="s1">'r2'</span><span class="p">]</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">regression</span><span class="p">[</span><span class="s2">"raison"</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">resultats</span></div>
+
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">__package__</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.moteur_sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">creer_connexion</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">moteur_sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">creer_connexion</span>
+
+    <span class="n">engine</span> <span class="o">=</span> <span class="n">creer_connexion</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">tester_analyse</span><span class="p">(</span><span class="n">engine</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">engine</span><span class="o">.</span><span class="n">dispose</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">RailInsight-SNCF</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Code du module</a><ul>
+  <li><a href="../projet_railinsight.html">projet_railinsight</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, Ghislain ZEUFACK, Romain VALLÉE, Manganaw N'DAAM, Emmanuel TAGAE, Jonathan RAKOTOVAO.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.2.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

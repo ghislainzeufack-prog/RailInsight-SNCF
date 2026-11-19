@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+
+<html lang="fr" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>projet_railinsight.data_processing &#8212; Documentation RailInsight-SNCF 0.1.0</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=27fed22d" />
+    <script src="../../_static/documentation_options.js?v=897fae25"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/translations.js?v=e6b791cb"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Recherche" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Code source de projet_railinsight.data_processing</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Préparation des données de ponctualité TGV."""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+
+<div class="viewcode-block" id="charger_donnees_tgv">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.data_processing.charger_donnees_tgv">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">charger_donnees_tgv</span><span class="p">(</span><span class="n">chemin</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Charge les données SNCF et prépare la colonne Date."""</span>
+    <span class="n">donnees</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">chemin</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">";"</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="s2">"Date"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">donnees</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Colonne manquante : Date"</span><span class="p">)</span>
+
+    <span class="n">donnees</span><span class="p">[</span><span class="s2">"Date_parsed"</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span>
+        <span class="n">donnees</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">],</span>
+        <span class="nb">format</span><span class="o">=</span><span class="s2">"%Y-%m"</span><span class="p">,</span>
+        <span class="n">errors</span><span class="o">=</span><span class="s2">"coerce"</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">donnees</span></div>
+
+
+
+<div class="viewcode-block" id="preparer_donnees_retards">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.data_processing.preparer_donnees_retards">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">preparer_donnees_retards</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Calcule et valide le taux de retard supérieur à 15 minutes.</span>
+
+<span class="sd">    Les observations invalides sont conservées, avec un taux NaN.</span>
+<span class="sd">    Le DataFrame fourni en entrée n'est pas modifié.</span>
+<span class="sd">    """</span>
+    <span class="n">colonnes</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="s2">"Nombre de circulations prévues"</span><span class="p">,</span>
+        <span class="s2">"Nombre de trains annulés"</span><span class="p">,</span>
+        <span class="s2">"Nombre trains en retard &gt; 15min"</span><span class="p">,</span>
+    <span class="p">]</span>
+
+    <span class="n">manquantes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">colonnes</span><span class="p">)</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">manquantes</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Colonnes manquantes : </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">manquantes</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="n">resultat</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="n">prevus</span> <span class="o">=</span> <span class="n">resultat</span><span class="p">[</span><span class="s2">"Nombre de circulations prévues"</span><span class="p">]</span>
+    <span class="n">annules</span> <span class="o">=</span> <span class="n">resultat</span><span class="p">[</span><span class="s2">"Nombre de trains annulés"</span><span class="p">]</span>
+
+    <span class="n">resultat</span><span class="p">[</span><span class="s2">"Trains réalisés"</span><span class="p">]</span> <span class="o">=</span> <span class="n">prevus</span> <span class="o">-</span> <span class="n">annules</span>
+
+    <span class="n">resultat</span><span class="p">[</span><span class="s2">"effectifs_coherents"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">(</span><span class="n">prevus</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">annules</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">annules</span> <span class="o">&lt;=</span> <span class="n">prevus</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="n">resultat</span><span class="p">[</span><span class="s2">"taux_retard_valide"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">resultat</span><span class="p">[</span><span class="s2">"effectifs_coherents"</span><span class="p">]</span>
+        <span class="o">&amp;</span> <span class="p">(</span><span class="n">resultat</span><span class="p">[</span><span class="s2">"Trains réalisés"</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="o">&amp;</span> <span class="p">(</span><span class="n">resultat</span><span class="p">[</span><span class="s2">"Nombre trains en retard &gt; 15min"</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="o">&amp;</span> <span class="p">(</span><span class="n">resultat</span><span class="p">[</span><span class="s2">"Nombre trains en retard &gt; 15min"</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">resultat</span><span class="p">[</span><span class="s2">"Trains réalisés"</span><span class="p">])</span>
+    <span class="p">)</span>
+
+    <span class="n">resultat</span><span class="p">[</span><span class="s2">"taux_retard_15min"</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+        <span class="n">resultat</span><span class="p">[</span><span class="s2">"taux_retard_valide"</span><span class="p">],</span>
+        <span class="mi">100</span>
+        <span class="o">*</span> <span class="n">resultat</span><span class="p">[</span><span class="s2">"Nombre trains en retard &gt; 15min"</span><span class="p">]</span>
+        <span class="o">/</span> <span class="n">resultat</span><span class="p">[</span><span class="s2">"Trains réalisés"</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">resultat</span></div>
+
+
+
+<div class="viewcode-block" id="calculer_taux_mensuel">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.data_processing.calculer_taux_mensuel">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">calculer_taux_mensuel</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Calcule le taux mensuel pondéré des retards &gt; 15 minutes.</span>
+
+<span class="sd">    Les observations invalides sont exclues de l'agrégation.</span>
+<span class="sd">    """</span>
+    <span class="n">donnees</span> <span class="o">=</span> <span class="n">preparer_donnees_retards</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+
+    <span class="n">donnees</span> <span class="o">=</span> <span class="n">donnees</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">donnees</span><span class="p">[</span><span class="s2">"taux_retard_valide"</span><span class="p">]]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="s2">"Date_parsed"</span> <span class="ow">in</span> <span class="n">donnees</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="n">donnees</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">]</span> <span class="o">=</span> <span class="n">donnees</span><span class="p">[</span><span class="s2">"Date_parsed"</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">donnees</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span>
+            <span class="n">donnees</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">],</span>
+            <span class="nb">format</span><span class="o">=</span><span class="s2">"%Y-%m"</span><span class="p">,</span>
+            <span class="n">errors</span><span class="o">=</span><span class="s2">"coerce"</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">donnees</span> <span class="o">=</span> <span class="n">donnees</span><span class="o">.</span><span class="n">dropna</span><span class="p">(</span><span class="n">subset</span><span class="o">=</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">])</span>
+
+    <span class="n">mensuel</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">donnees</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"Date"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+            <span class="n">trains_retardes</span><span class="o">=</span><span class="p">(</span><span class="s2">"Nombre trains en retard &gt; 15min"</span><span class="p">,</span> <span class="s2">"sum"</span><span class="p">),</span>
+            <span class="n">trains_realises</span><span class="o">=</span><span class="p">(</span><span class="s2">"Trains réalisés"</span><span class="p">,</span> <span class="s2">"sum"</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">sort_index</span><span class="p">()</span>
+    <span class="p">)</span>
+
+    <span class="n">mensuel</span><span class="p">[</span><span class="s2">"taux_retard_15min"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="mi">100</span> <span class="o">*</span> <span class="n">mensuel</span><span class="p">[</span><span class="s2">"trains_retardes"</span><span class="p">]</span> <span class="o">/</span> <span class="n">mensuel</span><span class="p">[</span><span class="s2">"trains_realises"</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">mensuel</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">RailInsight-SNCF</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Code du module</a><ul>
+  <li><a href="../projet_railinsight.html">projet_railinsight</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, Ghislain ZEUFACK, Romain VALLÉE, Manganaw N'DAAM, Emmanuel TAGAE, Jonathan RAKOTOVAO.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.2.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

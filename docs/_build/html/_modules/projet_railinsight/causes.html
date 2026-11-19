@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+
+<html lang="fr" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>projet_railinsight.causes &#8212; Documentation RailInsight-SNCF 0.1.0</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=27fed22d" />
+    <script src="../../_static/documentation_options.js?v=897fae25"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/translations.js?v=e6b791cb"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Recherche" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Code source de projet_railinsight.causes</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Ce module analyse les causes de retard sur les observations mensuelles par liaison</span>
+<span class="sd">à la SNCF</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="n">LOGGER</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1"># Colonnes utilisees pour notre module</span>
+<span class="c1"># On definit des tuples au lieu des listes car c'est suppose fixe</span>
+<span class="n">COLONNES_CAUSES</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">"Prct retard pour causes externes"</span><span class="p">,</span>
+    <span class="s2">"Prct retard pour cause infrastructure"</span><span class="p">,</span>
+    <span class="s2">"Prct retard pour cause gestion trafic"</span><span class="p">,</span>
+    <span class="s2">"Prct retard pour cause matériel roulant"</span><span class="p">,</span>
+    <span class="s2">"Prct retard pour cause gestion en gare et réutilisation de matériel"</span><span class="p">,</span>
+    <span class="s2">"Prct retard pour cause prise en compte voyageurs (affluence, gestions PSH, correspondances)"</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">COLONNE_RETARDS</span> <span class="o">=</span> <span class="s2">"Nombre de trains en retard à l'arrivée"</span>
+<span class="n">COLONNE_PREVUS</span> <span class="o">=</span> <span class="s2">"Nombre de circulations prévues"</span>
+<span class="n">COLONNE_ANNULES</span> <span class="o">=</span> <span class="s2">"Nombre de trains annulés"</span>
+
+<span class="c1"># On transforme le generateur en tuple</span>
+<span class="n">LIBELLES_CAUSES</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+    <span class="n">libelle</span><span class="o">.</span><span class="n">removeprefix</span><span class="p">(</span><span class="s2">"Prct retard pour "</span><span class="p">)</span> <span class="k">for</span> <span class="n">libelle</span> <span class="ow">in</span> <span class="n">COLONNES_CAUSES</span>
+<span class="p">)</span>
+
+
+<span class="c1"># On va créer une classe qui va heriter des fonctionnalites du module ValueError</span>
+<div class="viewcode-block" id="AnalyseCausesErreur">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.causes.AnalyseCausesErreur">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">AnalyseCausesErreur</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Erreur reperee lors de l'analyses des causes de retard."""</span></div>
+
+
+
+<span class="c1"># On cree egalement une classe qui va heriter de la classe AnalyseCausesErreur</span>
+<div class="viewcode-block" id="ColonnesManquantesErreur">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.causes.ColonnesManquantesErreur">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ColonnesManquantesErreur</span><span class="p">(</span><span class="n">AnalyseCausesErreur</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Pour reperer le jeu de donnees ne comportant pas toute les colonnes requises"""</span></div>
+
+
+
+<div class="viewcode-block" id="AnalyseCauses">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.causes.AnalyseCauses">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">AnalyseCauses</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Analyse et filtre la repartition des causes de retard du TGV</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        df: Donnees chargees, avec une colonne ``Date_parsed`` de type datetime</span>
+
+<span class="sd">    Leve une exception si une colonne obligatoire manque lors de la creation de l'objet</span>
+<span class="sd">    """</span>
+
+    <span class="n">TOLERANCE_POURCENTAGE</span> <span class="o">=</span> <span class="mf">0.1</span>
+    <span class="n">COLONNES_REQUISES</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">"Date"</span><span class="p">,</span>
+        <span class="s2">"Gare de départ"</span><span class="p">,</span>
+        <span class="s2">"Gare d'arrivée"</span><span class="p">,</span>
+        <span class="n">COLONNE_RETARDS</span><span class="p">,</span>
+        <span class="n">COLONNE_PREVUS</span><span class="p">,</span>
+        <span class="n">COLONNE_ANNULES</span><span class="p">,</span>
+        <span class="c1"># '*' dans '*COLONNES_CAUSES' sert a decomposer le tuple pour inserer</span>
+        <span class="c1"># ses elements individuellement dans un autre tuple</span>
+        <span class="o">*</span><span class="n">COLONNES_CAUSES</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Copie les donnees et verifie la presence des colonnes obligatoires."""</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># On verifie la presence des colonnes obligatoires</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">verifier_colonnes</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="s2">"Date_parsed"</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">],</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"coerce"</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">colonne</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="n">COLONNE_RETARDS</span><span class="p">,</span>
+            <span class="n">COLONNE_PREVUS</span><span class="p">,</span>
+            <span class="n">COLONNE_ANNULES</span><span class="p">,</span>
+            <span class="o">*</span><span class="n">COLONNES_CAUSES</span><span class="p">,</span>
+        <span class="p">):</span>
+            <span class="c1"># On verifie qu'on a bien des valeurs numeriques sinon on remplace par NaN</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">colonne</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_numeric</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">colonne</span><span class="p">],</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"coerce"</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AnalyseCauses.verifier_colonnes">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.causes.AnalyseCauses.verifier_colonnes">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">verifier_colonnes</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Leve une exception lorsqu'une colonne obligatoire dans les donnees est manquante."""</span>
+        <span class="n">manquantes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">COLONNES_REQUISES</span><span class="p">)</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">manquantes</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ColonnesManquantesErreur</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Colonnes SNCF manquantes : </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">manquantes</span><span class="p">))</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCauses.donnees">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.causes.AnalyseCauses.donnees">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">donnees</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Retourne une copie des donnees"""</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCauses.filtrer_periode">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.causes.AnalyseCauses.filtrer_periode">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">filtrer_periode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debut</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">fin</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AnalyseCauses</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Conserve les mois compris entre debut et fin.</span>
+<span class="sd">        Les deux bornes sont au format ``YYYY-MM``</span>
+<span class="sd">        """</span>
+
+        <span class="c1"># On verifie si 'debut' et 'fin' sont valides</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">debut_mois</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Period</span><span class="p">(</span><span class="n">debut</span><span class="p">,</span> <span class="n">freq</span><span class="o">=</span><span class="s2">"M"</span><span class="p">)</span>
+            <span class="n">fin_mois</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Period</span><span class="p">(</span><span class="n">fin</span><span class="p">,</span> <span class="n">freq</span><span class="o">=</span><span class="s2">"M"</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">AnalyseCausesErreur</span><span class="p">(</span><span class="s2">"La période attend le format YYYY-MM."</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+        <span class="k">if</span> <span class="n">debut_mois</span> <span class="o">&gt;</span> <span class="n">fin_mois</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">AnalyseCausesErreur</span><span class="p">(</span><span class="s2">"La date de début dépasse la date de fin."</span><span class="p">)</span>
+
+        <span class="n">dates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="s2">"Date_parsed"</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">to_period</span><span class="p">(</span><span class="s2">"M"</span><span class="p">)</span>
+        <span class="n">LOGGER</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Filtre période : </span><span class="si">%s</span><span class="s2"> à </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">debut</span><span class="p">,</span> <span class="n">fin</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">AnalyseCauses</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">dates</span><span class="o">.</span><span class="n">between</span><span class="p">(</span><span class="n">debut_mois</span><span class="p">,</span> <span class="n">fin_mois</span><span class="p">)])</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCauses.filtrer_liaison">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.causes.AnalyseCauses.filtrer_liaison">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">filtrer_liaison</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">depart</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">arrivee</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AnalyseCauses</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Conserve le sens de circulation ``depart -&gt; arrivee``."""</span>
+        <span class="n">LOGGER</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Filtre liaison : </span><span class="si">%s</span><span class="s2"> -&gt; </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">depart</span><span class="p">,</span> <span class="n">arrivee</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">AnalyseCauses</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="s2">"Gare de départ"</span><span class="p">]</span><span class="o">.</span><span class="n">eq</span><span class="p">(</span><span class="n">depart</span><span class="p">)</span>
+                <span class="o">&amp;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="s2">"Gare d'arrivée"</span><span class="p">]</span><span class="o">.</span><span class="n">eq</span><span class="p">(</span><span class="n">arrivee</span><span class="p">)</span>
+            <span class="p">]</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCauses.regrouper_sens">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.causes.AnalyseCauses.regrouper_sens">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">regrouper_sens</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">depart</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">arrivee</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AnalyseCauses</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Conserve les deux sens d'une paire de gares, sans autre liaison."""</span>
+        <span class="n">aller</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="s2">"Gare de départ"</span><span class="p">]</span><span class="o">.</span><span class="n">eq</span><span class="p">(</span><span class="n">depart</span><span class="p">)</span> <span class="o">&amp;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="s2">"Gare d'arrivée"</span><span class="p">]</span><span class="o">.</span><span class="n">eq</span><span class="p">(</span>
+            <span class="n">arrivee</span>
+        <span class="p">)</span>
+        <span class="n">retour</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="s2">"Gare de départ"</span><span class="p">]</span><span class="o">.</span><span class="n">eq</span><span class="p">(</span><span class="n">arrivee</span><span class="p">)</span> <span class="o">&amp;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="s2">"Gare d'arrivée"</span><span class="p">]</span><span class="o">.</span><span class="n">eq</span><span class="p">(</span>
+            <span class="n">depart</span>
+        <span class="p">)</span>
+        <span class="n">LOGGER</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Filtre aller-retour : </span><span class="si">%s</span><span class="s2"> &lt;-&gt; </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">depart</span><span class="p">,</span> <span class="n">arrivee</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">AnalyseCauses</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">aller</span> <span class="o">|</span> <span class="n">retour</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCauses.conserver_observations_exploitables">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.causes.AnalyseCauses.conserver_observations_exploitables">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">conserver_observations_exploitables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Conserve les observations où la somme des prct est egal a 100 +/- 0.1.</span>
+<span class="sd">        les lignes sans retard a l'arrivee, ainsi que les valeurs manquantes sont exclues</span>
+<span class="sd">        """</span>
+
+        <span class="c1"># On selectionne les colonnes relatives aux causes</span>
+        <span class="n">pourcentages</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">COLONNES_CAUSES</span><span class="p">)]</span>
+
+        <span class="c1"># on exclut les lignes contenant au moins une valeur manquante</span>
+        <span class="n">masque_complet</span> <span class="o">=</span> <span class="n">pourcentages</span><span class="o">.</span><span class="n">notna</span><span class="p">()</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">masque_bornes</span> <span class="o">=</span> <span class="n">pourcentages</span><span class="o">.</span><span class="n">ge</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">pourcentages</span><span class="o">.</span><span class="n">le</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">(</span>
+            <span class="n">axis</span><span class="o">=</span><span class="mi">1</span>
+        <span class="p">)</span>
+
+        <span class="c1"># min_count=len(COLONNES_CAUSES) permet de s'assurer que toutes</span>
+        <span class="c1"># toutes les cases d'une observation des colonnes selectionnees</span>
+        <span class="c1"># ne comporte pas de valeurs manquantes, et renvoie NaN si</span>
+        <span class="c1"># le nombre de valeurs prises pour la somme ne correpond pas</span>
+        <span class="c1"># au nombre de colonnes dans COLONNES_CAUSES</span>
+        <span class="n">masque_somme_prct_valide</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">pourcentages</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">min_count</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">COLONNES_CAUSES</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">abs</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">le</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TOLERANCE_POURCENTAGE</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># le masque des observations ayant un nombre de trains en retard</span>
+        <span class="c1"># a l'arrivee superieur a 0</span>
+        <span class="n">masque_avec_retard</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">COLONNE_RETARDS</span><span class="p">]</span><span class="o">.</span><span class="n">gt</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span>
+            <span class="n">masque_complet</span>
+            <span class="o">&amp;</span> <span class="n">masque_bornes</span>
+            <span class="o">&amp;</span> <span class="n">masque_somme_prct_valide</span>
+            <span class="o">&amp;</span> <span class="n">masque_avec_retard</span>
+        <span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCauses.analyser_volume">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.causes.AnalyseCauses.analyser_volume">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">analyser_volume</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Produit les observations exploitables et les effectifs</span>
+<span class="sd">        de la selection cumulés par observation liaison-mois</span>
+<span class="sd">        """</span>
+        <span class="n">exploitables</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">conserver_observations_exploitables</span><span class="p">()</span>
+        <span class="n">total_retards</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">COLONNE_RETARDS</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="n">couverts</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">exploitables</span><span class="p">[</span><span class="n">COLONNE_RETARDS</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">"observations"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">),</span>
+            <span class="s2">"circulations_prevues"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">COLONNE_PREVUS</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+            <span class="s2">"trains_annules"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">COLONNE_ANNULES</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+            <span class="s2">"retards_a_l_arrivee"</span><span class="p">:</span> <span class="n">total_retards</span><span class="p">,</span>
+            <span class="s2">"observations_exploitables"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">exploitables</span><span class="p">),</span>
+            <span class="s2">"retards_couverts"</span><span class="p">:</span> <span class="n">couverts</span><span class="p">,</span>
+            <span class="s2">"retards_exclus"</span><span class="p">:</span> <span class="n">total_retards</span> <span class="o">-</span> <span class="n">couverts</span><span class="p">,</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCauses.repartition_causes">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.causes.AnalyseCauses.repartition_causes">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">repartition_causes</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Compare la mediane et la moyenne ponderee par les retards a l'arrivee.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Tableau : ``cause``, ``mediane_pct``, ``part_ponderee_pct``</span>
+
+<span class="sd">        Leve une exception si aucune observation exploitable n'est dispobible</span>
+<span class="sd">        """</span>
+
+        <span class="n">exploitables</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">conserver_observations_exploitables</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">exploitables</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">AnalyseCausesErreur</span><span class="p">(</span>
+                <span class="s2">"Aucune observation de causes exploitable sur cette selection"</span>
+            <span class="p">)</span>
+
+        <span class="n">retards</span> <span class="o">=</span> <span class="n">exploitables</span><span class="p">[</span><span class="n">COLONNE_RETARDS</span><span class="p">]</span>
+        <span class="n">pourcentages</span> <span class="o">=</span> <span class="n">exploitables</span><span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">COLONNES_CAUSES</span><span class="p">)]</span>
+        <span class="n">resultat</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">"cause"</span><span class="p">:</span> <span class="n">LIBELLES_CAUSES</span><span class="p">,</span>
+                <span class="s2">"mediane_pct"</span><span class="p">:</span> <span class="n">pourcentages</span><span class="o">.</span><span class="n">median</span><span class="p">()</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span>
+                <span class="s2">"part_ponderee_pct"</span><span class="p">:</span> <span class="p">(</span>
+                    <span class="n">pourcentages</span><span class="o">.</span><span class="n">mul</span><span class="p">(</span><span class="n">retards</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">retards</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">resultat</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s2">"part_ponderee_pct"</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span>
+            <span class="n">drop</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCauses.comparer_liaisons">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.causes.AnalyseCauses.comparer_liaisons">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">comparer_liaisons</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">liaisons</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Compare la repartition des causes de retard entre plusieurs liaisons SNCF.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Tableau avec ``liaison``, ``cause``, ``part_ponderee_pct``.</span>
+<span class="sd">        """</span>
+
+        <span class="c1"># L'utilisateur doit selectionner entre 2 et 5 liaisons pour effectuer une comparaisons</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="mi">2</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">liaisons</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">AnalyseCausesErreur</span><span class="p">(</span>
+                <span class="s2">"Sélectionner entre 2 et 5 liaisons pour la comparaison."</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">liaisons</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">liaisons</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">AnalyseCausesErreur</span><span class="p">(</span><span class="s2">"Les liaisons doivent être distinctes."</span><span class="p">)</span>
+
+        <span class="n">comparaisons</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">depart</span><span class="p">,</span> <span class="n">arrivee</span> <span class="ow">in</span> <span class="n">liaisons</span><span class="p">:</span>
+            <span class="n">repartition</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filtrer_liaison</span><span class="p">(</span><span class="n">depart</span><span class="p">,</span> <span class="n">arrivee</span><span class="p">)</span><span class="o">.</span><span class="n">repartition_causes</span><span class="p">()</span>
+            <span class="n">repartition</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">"liaison"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">depart</span><span class="si">}</span><span class="s2"> → </span><span class="si">{</span><span class="n">arrivee</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">comparaisons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">repartition</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">comparaisons</span><span class="p">,</span> <span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">RailInsight-SNCF</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Code du module</a><ul>
+  <li><a href="../projet_railinsight.html">projet_railinsight</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, Ghislain ZEUFACK, Romain VALLÉE, Manganaw N'DAAM, Emmanuel TAGAE, Jonathan RAKOTOVAO.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.2.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
