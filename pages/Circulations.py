@@ -16,38 +16,11 @@ from projet_railinsight.circulations import (
 FICHIER_CSV = Path("data/raw/regularite-mensuelle-tgv-aqst.csv")
 
 
-@st.cache_data(show_spinner="Chargement des donnees TGV SNCF...")
-def charger_donnees_tgv() -> pd.DataFrame:
-    """Charge le jeu de donnees via common_processing ou les chemins standards."""
-    try:
-        from projet_railinsight.common_processing import charger_donnees  # type: ignore[import-not-found]
+@st.cache_data(show_spinner="Chargement des données SNCF…")
+def charger_donnees(chemin: str) -> pd.DataFrame:
+    """Charge le fichier SNCF"""
 
-        df_commun = charger_donnees()
-        if isinstance(df_commun, pd.DataFrame) and not df_commun.empty:
-            return df_commun
-    except Exception:
-        pass
-
-    chemins_candidats = [
-        Path("data/processed/regularite-mensuelle-tgv-aqst.csv"),
-        Path("data/raw/regularite-mensuelle-tgv-aqst.csv"),
-        Path("data/regularite-mensuelle-tgv-aqst.csv"),
-        Path("regularite-mensuelle-tgv-aqst.csv"),
-    ]
-    for chemin in chemins_candidats:
-        if chemin.exists():
-            sep = (
-                ";"
-                if ";" in chemin.read_text(encoding="utf-8", errors="ignore")[:500]
-                else ","
-            )
-            return pd.read_csv(chemin, sep=sep)
-
-    url_sncf = (
-        "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/"
-        "regularite-mensuelle-tgv-aqst/exports/csv?delimiter=%3B"
-    )
-    return pd.read_csv(url_sncf, sep=";")
+    return pd.read_csv(chemin, sep=";")
 
 
 def afficher_page_circulations() -> None:
@@ -80,7 +53,7 @@ def afficher_page_circulations() -> None:
         return
 
     try:
-        df_brut = charger_donnees_tgv(str(FICHIER_CSV))
+        df_brut = charger_donnees(str(FICHIER_CSV))
         analyseur = AnalyseCirculations(df_brut)
     except (ErreurValidationCirculations, OSError, ValueError) as exc:
         st.error(f"Impossible de charger ou valider les donnees SNCF : {exc}")
