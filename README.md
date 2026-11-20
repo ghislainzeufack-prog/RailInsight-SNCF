@@ -28,7 +28,7 @@ Chaque membre a développé progressivement son module Python, ses tests, ses vi
 
 Le jeu de données décrit des indicateurs mensuels par liaison, notamment les circulations prévues, les annulations, les retards et la répartition des causes de retard.
 
-Les données brutes ne sont pas incluses par défaut dans le dépôt. Les conventions de calcul, la qualité des données et les limites d'interprétation sont détaillées dans la **datasheet** commune, dans `docs/datasheet_sncf.md` (à venir)
+Les données brutes ne sont pas incluses par défaut dans le dépôt. Les conventions de calcul, la qualité des données et les limites d'interprétation sont détaillées dans la **datasheet** commune, dans `docs/datasheet_sncf.md`
 
 # Technologies prévues
 
