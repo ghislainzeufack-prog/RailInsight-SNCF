@@ -91,14 +91,15 @@ railinsight-sncf/
 ├── src/
 │   └── railinsight_sncf/          # Code Python métier réutilisable
 │       ├── __init__.py
-│       ├── causes.py              # Ghislain
-│       ├── circulations.py        # Jonathan
-│       ├── saisonnalite.py        # Romain
-│       ├── persistance.py         # Nelson
-│       └── fiabilite.py           # Emmanuel
+│       ├── causes.py              # Ghislain ZEUFACK
+│       ├── circulations.py        # Jonathan RAKOTOVAO
+│       ├── saisonnalite.py        # Romain VALLÉE
+│       ├── persistance.py         # Manganaw N'DAAM
+│       └── fiabilite.py           # Emmanuel TAGAE
 ├── tests/                         # Tests unitaires et d'intégration
 ├── docs/                          # Sphinx, datasheet et analyses
 ├── data/                          # Données locales non publiées par défaut
+├── notebooks                      # Analyses effectué par chaque membre du groupe
 ├── logs/                          # Journaux locaux
 ├── pyproject.toml                 # Configuration et dépendances
 ├── uv.lock                        # Verrouillage des versions
@@ -175,8 +176,11 @@ au VPS n’est nécessaire.
 Pour lancer les mêmes vérifications localement :
 
 ```bash
-uv sync --locked --dev
-uv run --no-sync pytest tests/ -v --cov=projet_railinsight.saisonnalite --cov=projet_railinsight.moteur_sql --cov-report=term-missing
+uv run ruff check .
+uv run ruff format --check .
+uv run ruff check src/projet_railinsight --select D100,D101,D102,D103
+uv run pytest tests/ --cov=projet_railinsight --cov-report=term-missing --cov-fail-under=90
+uv run ruff check src/projet_railinsight pages/ --select S
 ```
 
 Configuration basée sur le [guide officiel uv pour GitHub Actions](https://docs.astral.sh/uv/guides/integration/github/).
@@ -184,11 +188,10 @@ Configuration basée sur le [guide officiel uv pour GitHub Actions](https://docs
 ## Documentation
 
 - **README (ce fichier)** : comprendre, installer, lancer et utiliser l'application.
-- **Datasheet** (`docs/datasheet_sncf.md`, à venir) : provenance, composition, traitements, usages et limites des données.
-- **Sphinx** (`docs/`, à configurer) : documentation des fonctions, méthodes et classes Python.
+- **Datasheet** (`docs/datasheet_sncf.md`) : provenance, composition, traitements, usages et limites des données.
+- **Sphinx** (`docs/`) : documentation des fonctions, méthodes et classes Python.
 
 ## Application en ligne et déploiement
 
-**Lien Streamlit :** (à ajouter après le premier déploiement public.)
+**Lien Streamlit :** [https://railinsight-sncf.streamlit.app/](https://railinsight-sncf.streamlit.app/)
 
-(Les étapes de déploiement seront documentées ici une fois vérifiées sur l'application réelle)
