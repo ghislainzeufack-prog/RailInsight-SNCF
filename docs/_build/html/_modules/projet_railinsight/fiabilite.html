@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+
+<html lang="fr" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>projet_railinsight.fiabilite &#8212; Documentation RailInsight-SNCF 0.1.0</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=27fed22d" />
+    <script src="../../_static/documentation_options.js?v=897fae25"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/translations.js?v=e6b791cb"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Recherche" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Code source de projet_railinsight.fiabilite</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Indicateurs de fiabilité des liaisons TGV."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+
+<div class="viewcode-block" id="calculer_taux_retard">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.fiabilite.calculer_taux_retard">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">calculer_taux_retard</span><span class="p">(</span>
+    <span class="n">trains_prevus</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">trains_annules</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">trains_retard</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Calcule le pourcentage de trains en retard parmi les trains circulés."""</span>
+
+    <span class="c1"># Validation des effectifs</span>
+    <span class="k">if</span> <span class="nb">min</span><span class="p">(</span><span class="n">trains_prevus</span><span class="p">,</span> <span class="n">trains_annules</span><span class="p">,</span> <span class="n">trains_retard</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Les effectifs ne peuvent pas être négatifs."</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">trains_annules</span> <span class="o">&gt;</span> <span class="n">trains_prevus</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Les annulations dépassent les trains prévus."</span><span class="p">)</span>
+
+    <span class="c1"># Calcul des trains circulés</span>
+    <span class="n">trains_circules</span> <span class="o">=</span> <span class="n">trains_prevus</span> <span class="o">-</span> <span class="n">trains_annules</span>
+
+    <span class="k">if</span> <span class="n">trains_circules</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Aucun train n'a circulé."</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">trains_retard</span> <span class="o">&gt;</span> <span class="n">trains_circules</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Les retards dépassent les trains circulés."</span><span class="p">)</span>
+
+    <span class="c1"># Calcul du taux de retard en pourcentage</span>
+    <span class="k">return</span> <span class="mi">100</span> <span class="o">*</span> <span class="n">trains_retard</span> <span class="o">/</span> <span class="n">trains_circules</span></div>
+
+
+
+<div class="viewcode-block" id="calculer_taux_annulation">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.fiabilite.calculer_taux_annulation">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">calculer_taux_annulation</span><span class="p">(</span>
+    <span class="n">trains_prevus</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">trains_annules</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Calcule le pourcentage de trains annulés parmi les trains prévus."""</span>
+
+    <span class="c1"># Validation des effectifs</span>
+    <span class="k">if</span> <span class="n">trains_prevus</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">trains_annules</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Les effectifs ne peuvent pas être négatifs."</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">trains_annules</span> <span class="o">&gt;</span> <span class="n">trains_prevus</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Les annulations dépassent les trains prévus."</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">trains_prevus</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Aucun train n'était prévu."</span><span class="p">)</span>
+
+    <span class="c1"># Calcul du taux d'annulation en pourcentage</span>
+    <span class="k">return</span> <span class="mi">100</span> <span class="o">*</span> <span class="n">trains_annules</span> <span class="o">/</span> <span class="n">trains_prevus</span></div>
+
+
+
+<div class="viewcode-block" id="AnalyseFiabilite">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.fiabilite.AnalyseFiabilite">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">AnalyseFiabilite</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Analyse la fiabilité des liaisons TGV à partir des données SNCF."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">donnees</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Vérification du type des données</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">donnees</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"Les données doivent être un DataFrame pandas."</span><span class="p">)</span>
+
+        <span class="c1"># Conservation d'une copie indépendante</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">donnees</span> <span class="o">=</span> <span class="n">donnees</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+<div class="viewcode-block" id="AnalyseFiabilite.calculer_indicateurs">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.fiabilite.AnalyseFiabilite.calculer_indicateurs">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calculer_indicateurs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Calcule les taux de retard et d'annulation pour chaque observation."""</span>
+
+        <span class="c1"># Identification des colonnes nécessaires</span>
+        <span class="n">colonnes</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">"Nombre de circulations prévues"</span><span class="p">,</span>
+            <span class="s2">"Nombre de trains annulés"</span><span class="p">,</span>
+            <span class="s2">"Nombre de trains en retard à l'arrivée"</span><span class="p">,</span>
+        <span class="p">]</span>
+
+        <span class="c1"># Vérification des colonnes présentes</span>
+        <span class="n">manquantes</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">colonnes</span> <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">donnees</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">manquantes</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Colonnes manquantes : </span><span class="si">{</span><span class="n">manquantes</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="c1"># Création d'une copie</span>
+        <span class="n">resultat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">donnees</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># Calcul des trains circulés</span>
+        <span class="n">resultat</span><span class="p">[</span><span class="s2">"Trains circulés"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">resultat</span><span class="p">[</span><span class="s2">"Nombre de circulations prévues"</span><span class="p">]</span>
+            <span class="o">-</span> <span class="n">resultat</span><span class="p">[</span><span class="s2">"Nombre de trains annulés"</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Validation des effectifs</span>
+        <span class="n">prevus</span> <span class="o">=</span> <span class="n">resultat</span><span class="p">[</span><span class="s2">"Nombre de circulations prévues"</span><span class="p">]</span>
+        <span class="n">annules</span> <span class="o">=</span> <span class="n">resultat</span><span class="p">[</span><span class="s2">"Nombre de trains annulés"</span><span class="p">]</span>
+        <span class="n">retards</span> <span class="o">=</span> <span class="n">resultat</span><span class="p">[</span><span class="s2">"Nombre de trains en retard à l'arrivée"</span><span class="p">]</span>
+        <span class="n">circules</span> <span class="o">=</span> <span class="n">resultat</span><span class="p">[</span><span class="s2">"Trains circulés"</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">prevus</span><span class="o">.</span><span class="n">isna</span><span class="p">()</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+            <span class="ow">or</span> <span class="n">annules</span><span class="o">.</span><span class="n">isna</span><span class="p">()</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+            <span class="ow">or</span> <span class="n">retards</span><span class="o">.</span><span class="n">isna</span><span class="p">()</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+            <span class="ow">or</span> <span class="p">(</span><span class="n">prevus</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+            <span class="ow">or</span> <span class="p">(</span><span class="n">annules</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+            <span class="ow">or</span> <span class="p">(</span><span class="n">retards</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+            <span class="ow">or</span> <span class="p">(</span><span class="n">annules</span> <span class="o">&gt;</span> <span class="n">prevus</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+            <span class="ow">or</span> <span class="p">(</span><span class="n">circules</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+            <span class="ow">or</span> <span class="p">(</span><span class="n">retards</span> <span class="o">&gt;</span> <span class="n">circules</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Effectifs invalides pour le calcul des indicateurs."</span><span class="p">)</span>
+
+        <span class="c1"># Calcul des taux en pourcentage</span>
+        <span class="n">resultat</span><span class="p">[</span><span class="s2">"Taux de retard (%)"</span><span class="p">]</span> <span class="o">=</span> <span class="mi">100</span> <span class="o">*</span> <span class="n">retards</span> <span class="o">/</span> <span class="n">circules</span>
+        <span class="n">resultat</span><span class="p">[</span><span class="s2">"Taux d'annulation (%)"</span><span class="p">]</span> <span class="o">=</span> <span class="mi">100</span> <span class="o">*</span> <span class="n">annules</span> <span class="o">/</span> <span class="n">prevus</span>
+
+        <span class="k">return</span> <span class="n">resultat</span></div>
+
+
+<div class="viewcode-block" id="AnalyseFiabilite.classer_liaisons">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.fiabilite.AnalyseFiabilite.classer_liaisons">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">classer_liaisons</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">annee</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">min_circulations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">500</span><span class="p">,</span>
+        <span class="n">min_mois</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Classe les liaisons selon leur taux de retard à l'arrivée."""</span>
+
+        <span class="c1"># Validation des paramètres</span>
+        <span class="k">if</span> <span class="n">min_circulations</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">min_mois</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Seuils de sélection invalides."</span><span class="p">)</span>
+
+        <span class="c1"># Calcul des indicateurs</span>
+        <span class="n">donnees</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculer_indicateurs</span><span class="p">()</span>
+
+        <span class="c1"># Vérification des colonnes</span>
+        <span class="n">colonnes</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"Date"</span><span class="p">,</span> <span class="s2">"Service"</span><span class="p">,</span> <span class="s2">"Gare de départ"</span><span class="p">,</span> <span class="s2">"Gare d'arrivée"</span><span class="p">]</span>
+        <span class="n">manquantes</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">colonnes</span> <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">donnees</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">manquantes</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Colonnes manquantes : </span><span class="si">{</span><span class="n">manquantes</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="c1"># Conversion des dates</span>
+        <span class="n">donnees</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">donnees</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">],</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"coerce"</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">donnees</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">]</span><span class="o">.</span><span class="n">isna</span><span class="p">()</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Dates invalides."</span><span class="p">)</span>
+
+        <span class="c1"># Filtrage de l'année</span>
+        <span class="k">if</span> <span class="n">annee</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">donnees</span> <span class="o">=</span> <span class="n">donnees</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">donnees</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">year</span> <span class="o">==</span> <span class="n">annee</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># Agrégation des effectifs par liaison</span>
+        <span class="n">classement</span> <span class="o">=</span> <span class="n">donnees</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span>
+            <span class="p">[</span><span class="s2">"Service"</span><span class="p">,</span> <span class="s2">"Gare de départ"</span><span class="p">,</span> <span class="s2">"Gare d'arrivée"</span><span class="p">],</span>
+            <span class="n">as_index</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+            <span class="n">trains_circules</span><span class="o">=</span><span class="p">(</span><span class="s2">"Trains circulés"</span><span class="p">,</span> <span class="s2">"sum"</span><span class="p">),</span>
+            <span class="n">trains_retard</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Nombre de trains en retard à l'arrivée"</span><span class="p">,</span>
+                <span class="s2">"sum"</span><span class="p">,</span>
+            <span class="p">),</span>
+            <span class="n">nombre_mois</span><span class="o">=</span><span class="p">(</span><span class="s2">"Date"</span><span class="p">,</span> <span class="s2">"nunique"</span><span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Sélection des liaisons suffisamment représentées</span>
+        <span class="n">classement</span> <span class="o">=</span> <span class="n">classement</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span>
+            <span class="p">(</span><span class="n">classement</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">min_circulations</span><span class="p">)</span>
+            <span class="o">&amp;</span> <span class="p">(</span><span class="n">classement</span><span class="p">[</span><span class="s2">"nombre_mois"</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">min_mois</span><span class="p">)</span>
+        <span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># Calcul du taux agrégé</span>
+        <span class="n">classement</span><span class="p">[</span><span class="s2">"taux_retard"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="mi">100</span> <span class="o">*</span> <span class="n">classement</span><span class="p">[</span><span class="s2">"trains_retard"</span><span class="p">]</span> <span class="o">/</span> <span class="n">classement</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Classement décroissant</span>
+        <span class="n">classement</span> <span class="o">=</span> <span class="n">classement</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span>
+            <span class="s2">"taux_retard"</span><span class="p">,</span>
+            <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">classement</span></div>
+
+
+<div class="viewcode-block" id="AnalyseFiabilite.evolution_temporelle">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.fiabilite.AnalyseFiabilite.evolution_temporelle">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">evolution_temporelle</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">gare_depart</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">gare_arrivee</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">service</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">annee</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Calcule l'évolution mensuelle du taux de retard d'une liaison."""</span>
+
+        <span class="c1"># Calcul des indicateurs</span>
+        <span class="n">donnees</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculer_indicateurs</span><span class="p">()</span>
+
+        <span class="c1"># Vérification des colonnes</span>
+        <span class="n">colonnes</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"Date"</span><span class="p">,</span> <span class="s2">"Service"</span><span class="p">,</span> <span class="s2">"Gare de départ"</span><span class="p">,</span> <span class="s2">"Gare d'arrivée"</span><span class="p">]</span>
+        <span class="n">manquantes</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">colonnes</span> <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">donnees</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">manquantes</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Colonnes manquantes : </span><span class="si">{</span><span class="n">manquantes</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="c1"># Conversion des dates</span>
+        <span class="n">donnees</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">donnees</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">],</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"coerce"</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">donnees</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">]</span><span class="o">.</span><span class="n">isna</span><span class="p">()</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Dates invalides."</span><span class="p">)</span>
+
+        <span class="c1"># Sélection de la liaison</span>
+        <span class="n">donnees</span> <span class="o">=</span> <span class="n">donnees</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span>
+            <span class="p">(</span><span class="n">donnees</span><span class="p">[</span><span class="s2">"Gare de départ"</span><span class="p">]</span> <span class="o">==</span> <span class="n">gare_depart</span><span class="p">)</span>
+            <span class="o">&amp;</span> <span class="p">(</span><span class="n">donnees</span><span class="p">[</span><span class="s2">"Gare d'arrivée"</span><span class="p">]</span> <span class="o">==</span> <span class="n">gare_arrivee</span><span class="p">)</span>
+            <span class="o">&amp;</span> <span class="p">(</span><span class="n">donnees</span><span class="p">[</span><span class="s2">"Service"</span><span class="p">]</span> <span class="o">==</span> <span class="n">service</span><span class="p">)</span>
+        <span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># Filtrage de l'année</span>
+        <span class="k">if</span> <span class="n">annee</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">donnees</span> <span class="o">=</span> <span class="n">donnees</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">donnees</span><span class="p">[</span><span class="s2">"Date"</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">year</span> <span class="o">==</span> <span class="n">annee</span><span class="p">]</span>
+
+        <span class="c1"># Agrégation mensuelle</span>
+        <span class="n">evolution</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">donnees</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"Date"</span><span class="p">,</span> <span class="n">as_index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+                <span class="n">trains_circules</span><span class="o">=</span><span class="p">(</span><span class="s2">"Trains circulés"</span><span class="p">,</span> <span class="s2">"sum"</span><span class="p">),</span>
+                <span class="n">trains_retard</span><span class="o">=</span><span class="p">(</span>
+                    <span class="s2">"Nombre de trains en retard à l'arrivée"</span><span class="p">,</span>
+                    <span class="s2">"sum"</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+            <span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s2">"Date"</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Calcul du taux mensuel</span>
+        <span class="n">evolution</span><span class="p">[</span><span class="s2">"taux_retard"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="mi">100</span> <span class="o">*</span> <span class="n">evolution</span><span class="p">[</span><span class="s2">"trains_retard"</span><span class="p">]</span> <span class="o">/</span> <span class="n">evolution</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">evolution</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">RailInsight-SNCF</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Code du module</a><ul>
+  <li><a href="../projet_railinsight.html">projet_railinsight</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, Ghislain ZEUFACK, Romain VALLÉE, Manganaw N'DAAM, Emmanuel TAGAE, Jonathan RAKOTOVAO.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.2.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

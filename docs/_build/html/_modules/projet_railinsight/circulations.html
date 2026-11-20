@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+
+<html lang="fr" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>projet_railinsight.circulations &#8212; Documentation RailInsight-SNCF 0.1.0</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=27fed22d" />
+    <script src="../../_static/documentation_options.js?v=897fae25"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/translations.js?v=e6b791cb"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Recherche" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Code source de projet_railinsight.circulations</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Module d'analyse des circulations, annulations et retards TGV.</span>
+
+<span class="sd">Ce module fournit la classe ``AnalyseCirculations`` ainsi que l'exception metier</span>
+<span class="sd">``ErreurValidationCirculations`` pour valider, filtrer et agreger les donnees</span>
+<span class="sd">de regularite mensuelle TGV de la SNCF sans modifier le DataFrame d'origine.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="n">COLONNES_REQUISES</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">"date"</span><span class="p">,</span>
+    <span class="s2">"gare_depart"</span><span class="p">,</span>
+    <span class="s2">"gare_arrivee"</span><span class="p">,</span>
+    <span class="s2">"nb_train_prevu"</span><span class="p">,</span>
+    <span class="s2">"nb_annulation"</span><span class="p">,</span>
+    <span class="s2">"nb_train_retard_arrivee"</span><span class="p">,</span>
+    <span class="s2">"duree_moyenne"</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">MAPPING_COLONNES_BRUTES</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"Date"</span><span class="p">:</span> <span class="s2">"date"</span><span class="p">,</span>
+    <span class="s2">"Gare de départ"</span><span class="p">:</span> <span class="s2">"gare_depart"</span><span class="p">,</span>
+    <span class="s2">"Gare d'arrivée"</span><span class="p">:</span> <span class="s2">"gare_arrivee"</span><span class="p">,</span>
+    <span class="s2">"Nombre de circulations prévues"</span><span class="p">:</span> <span class="s2">"nb_train_prevu"</span><span class="p">,</span>
+    <span class="s2">"Nombre de trains annulés"</span><span class="p">:</span> <span class="s2">"nb_annulation"</span><span class="p">,</span>
+    <span class="s2">"Nombre de trains en retard à l'arrivée"</span><span class="p">:</span> <span class="s2">"nb_train_retard_arrivee"</span><span class="p">,</span>
+    <span class="s2">"Durée moyenne du trajet"</span><span class="p">:</span> <span class="s2">"duree_moyenne"</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="ErreurValidationCirculations">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.circulations.ErreurValidationCirculations">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ErreurValidationCirculations</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Exception levee lorsqu'une entree ou un filtre metier est invalide."""</span></div>
+
+
+
+<div class="viewcode-block" id="CompteurObservations">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.circulations.CompteurObservations">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">CompteurObservations</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Compte des observations valides (exercice pedagogique POO du TP).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    nombre_initial : int, default 0</span>
+<span class="sd">        Valeur initiale du compteur (doit etre superieure ou egale a 0).</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        Si ``nombre_initial`` est strictement negatif.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nombre_initial</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">nombre_initial</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"Le nombre initial d'observations ne peut pas etre negatif."</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_total</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">nombre_initial</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">total</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Retourne le nombre total d'observations comptabilisees."""</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_total</span>
+
+<div class="viewcode-block" id="CompteurObservations.augmenter">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.circulations.CompteurObservations.augmenter">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">augmenter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">quantite</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Ajoute un nombre positif d'observations au compteur.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        quantite : int</span>
+<span class="sd">            Nombre d'observations a ajouter (doit etre &gt;= 0).</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            Si ``quantite`` est negative.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="n">quantite</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"La quantite a ajouter ne peut pas etre negative."</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_total</span> <span class="o">+=</span> <span class="nb">int</span><span class="p">(</span><span class="n">quantite</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="AnalyseCirculations">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.circulations.AnalyseCirculations">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">AnalyseCirculations</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Encapsule l'etat valide et les calculs d'annulations et de retards TGV.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    donnees : pd.DataFrame</span>
+<span class="sd">        Jeu de donnees mensuel par liaison (colonnes standardisees ou brutes SNCF).</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ErreurValidationCirculations</span>
+<span class="sd">        Si ``donnees`` n'est pas un DataFrame ou s'il manque des colonnes requises.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">donnees</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">donnees</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                <span class="s2">"Entree invalide fournie a AnalyseCirculations : type=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">donnees</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="n">ErreurValidationCirculations</span><span class="p">(</span>
+                <span class="s2">"L'argument 'donnees' doit etre un pandas DataFrame."</span>
+            <span class="p">)</span>
+
+        <span class="n">copie</span> <span class="o">=</span> <span class="n">donnees</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">MAPPING_COLONNES_BRUTES</span><span class="p">)</span>
+
+        <span class="n">colonnes_manquantes</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">col</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">COLONNES_REQUISES</span> <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">copie</span><span class="o">.</span><span class="n">columns</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="n">colonnes_manquantes</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">"Colonnes obligatoires manquantes : </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">colonnes_manquantes</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">ErreurValidationCirculations</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Colonnes obligatoires manquantes : </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">colonnes_manquantes</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">col_num</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="s2">"nb_train_prevu"</span><span class="p">,</span>
+            <span class="s2">"nb_annulation"</span><span class="p">,</span>
+            <span class="s2">"nb_train_retard_arrivee"</span><span class="p">,</span>
+            <span class="s2">"duree_moyenne"</span><span class="p">,</span>
+        <span class="p">):</span>
+            <span class="n">copie</span><span class="p">[</span><span class="n">col_num</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_numeric</span><span class="p">(</span><span class="n">copie</span><span class="p">[</span><span class="n">col_num</span><span class="p">],</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"coerce"</span><span class="p">)</span>
+
+        <span class="n">copie</span><span class="p">[</span><span class="s2">"date"</span><span class="p">]</span> <span class="o">=</span> <span class="n">copie</span><span class="p">[</span><span class="s2">"date"</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="n">copie</span><span class="p">[</span><span class="s2">"gare_depart"</span><span class="p">]</span> <span class="o">=</span> <span class="n">copie</span><span class="p">[</span><span class="s2">"gare_depart"</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="n">copie</span><span class="p">[</span><span class="s2">"gare_arrivee"</span><span class="p">]</span> <span class="o">=</span> <span class="n">copie</span><span class="p">[</span><span class="s2">"gare_arrivee"</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="n">copie</span><span class="p">[</span><span class="s2">"liaison"</span><span class="p">]</span> <span class="o">=</span> <span class="n">copie</span><span class="p">[</span><span class="s2">"gare_depart"</span><span class="p">]</span> <span class="o">+</span> <span class="s2">" -&gt; "</span> <span class="o">+</span> <span class="n">copie</span><span class="p">[</span><span class="s2">"gare_arrivee"</span><span class="p">]</span>
+        <span class="n">copie</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">]</span> <span class="o">=</span> <span class="n">copie</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">]</span> <span class="o">-</span> <span class="n">copie</span><span class="p">[</span><span class="s2">"nb_annulation"</span><span class="p">]</span>
+
+        <span class="n">masque_valide</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">copie</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">]</span><span class="o">.</span><span class="n">notna</span><span class="p">()</span>
+            <span class="o">&amp;</span> <span class="n">copie</span><span class="p">[</span><span class="s2">"nb_annulation"</span><span class="p">]</span><span class="o">.</span><span class="n">notna</span><span class="p">()</span>
+            <span class="o">&amp;</span> <span class="p">(</span><span class="n">copie</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="o">&amp;</span> <span class="p">(</span><span class="n">copie</span><span class="p">[</span><span class="s2">"nb_annulation"</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="o">&amp;</span> <span class="p">(</span><span class="n">copie</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="o">&amp;</span> <span class="p">(</span>
+                <span class="n">copie</span><span class="p">[</span><span class="s2">"nb_train_retard_arrivee"</span><span class="p">]</span><span class="o">.</span><span class="n">isna</span><span class="p">()</span>
+                <span class="o">|</span> <span class="p">(</span>
+                    <span class="p">(</span><span class="n">copie</span><span class="p">[</span><span class="s2">"nb_train_retard_arrivee"</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span>
+                    <span class="o">&amp;</span> <span class="p">(</span><span class="n">copie</span><span class="p">[</span><span class="s2">"nb_train_retard_arrivee"</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">copie</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">])</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="n">nb_invalides</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="o">~</span><span class="n">masque_valide</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">nb_invalides</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"Diagnostic circulations : </span><span class="si">%d</span><span class="s2"> lignes incoherentes detectees sur </span><span class="si">%d</span><span class="s2">."</span><span class="p">,</span>
+                <span class="n">nb_invalides</span><span class="p">,</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">copie</span><span class="p">),</span>
+            <span class="p">)</span>
+
+        <span class="n">copie</span><span class="p">[</span><span class="s2">"est_valide"</span><span class="p">]</span> <span class="o">=</span> <span class="n">masque_valide</span>
+        <span class="n">copie</span><span class="p">[</span><span class="s2">"taux_annulation"</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+            <span class="n">copie</span><span class="p">[</span><span class="s2">"est_valide"</span><span class="p">],</span>
+            <span class="p">(</span><span class="n">copie</span><span class="p">[</span><span class="s2">"nb_annulation"</span><span class="p">]</span> <span class="o">/</span> <span class="n">copie</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">])</span> <span class="o">*</span> <span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">copie</span><span class="p">[</span><span class="s2">"taux_retard_arrivee"</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+            <span class="n">copie</span><span class="p">[</span><span class="s2">"est_valide"</span><span class="p">]</span>
+            <span class="o">&amp;</span> <span class="p">(</span><span class="n">copie</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="o">&amp;</span> <span class="n">copie</span><span class="p">[</span><span class="s2">"nb_train_retard_arrivee"</span><span class="p">]</span><span class="o">.</span><span class="n">notna</span><span class="p">(),</span>
+            <span class="p">(</span><span class="n">copie</span><span class="p">[</span><span class="s2">"nb_train_retard_arrivee"</span><span class="p">]</span> <span class="o">/</span> <span class="n">copie</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">])</span> <span class="o">*</span> <span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_donnees_brutes</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">=</span> <span class="n">copie</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"AnalyseCirculations initialisee avec </span><span class="si">%d</span><span class="s2"> lignes."</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">copie</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">donnees</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Retourne une copie des donnees enrichies (garantit l'encapsulation)."""</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_donnees_brutes</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AnalyseCirculations.diagnostic_qualite">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.circulations.AnalyseCirculations.diagnostic_qualite">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">diagnostic_qualite</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Retourne un bilan chiffre des anomalies detectees dans le jeu de donnees."""</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_donnees_brutes</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">"total_lignes"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">),</span>
+            <span class="s2">"lignes_valides"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">"est_valide"</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+            <span class="s2">"lignes_invalides"</span><span class="p">:</span> <span class="nb">int</span><span class="p">((</span><span class="o">~</span><span class="n">df</span><span class="p">[</span><span class="s2">"est_valide"</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+            <span class="s2">"prevu_nul_ou_negatif"</span><span class="p">:</span> <span class="nb">int</span><span class="p">((</span><span class="n">df</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+            <span class="s2">"annulations_superieures_au_prevu"</span><span class="p">:</span> <span class="nb">int</span><span class="p">((</span><span class="n">df</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+            <span class="s2">"trains_circules_nuls"</span><span class="p">:</span> <span class="nb">int</span><span class="p">((</span><span class="n">df</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+            <span class="s2">"retards_superieurs_aux_circules"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span>
+                <span class="p">(</span>
+                    <span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span>
+                    <span class="o">&amp;</span> <span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">"nb_train_retard_arrivee"</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">df</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">])</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+            <span class="p">),</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCirculations.filtrer">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.circulations.AnalyseCirculations.filtrer">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">filtrer</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">date_debut</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">date_fin</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">liaisons</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">volume_min</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">exclure_invalides</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Filtre les observations liaison-mois selon les criteres de l'utilisateur."""</span>
+        <span class="k">if</span> <span class="n">volume_min</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">"Filtre invalide : volume_min negatif (</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">volume_min</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">ErreurValidationCirculations</span><span class="p">(</span>
+                <span class="s2">"Le volume minimal ne peut pas etre negatif."</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">date_debut</span> <span class="ow">and</span> <span class="n">date_fin</span> <span class="ow">and</span> <span class="n">date_debut</span> <span class="o">&gt;</span> <span class="n">date_fin</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">"Filtre de periode invalide : </span><span class="si">%s</span><span class="s2"> &gt; </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">date_debut</span><span class="p">,</span> <span class="n">date_fin</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">ErreurValidationCirculations</span><span class="p">(</span>
+                <span class="s2">"La date de debut ne peut pas etre posterieure a la date de fin."</span>
+            <span class="p">)</span>
+
+        <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_donnees_brutes</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">exclure_invalides</span><span class="p">:</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="p">[</span><span class="s2">"est_valide"</span><span class="p">]]</span>
+
+        <span class="k">if</span> <span class="n">date_debut</span><span class="p">:</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="p">[</span><span class="s2">"date"</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="nb">str</span><span class="p">(</span><span class="n">date_debut</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="n">date_fin</span><span class="p">:</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="p">[</span><span class="s2">"date"</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="nb">str</span><span class="p">(</span><span class="n">date_fin</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="n">liaisons</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">liaisons</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="p">[</span><span class="s2">"liaison"</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">liaisons</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="n">volume_min</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">volume_min</span><span class="p">]</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Filtrage effectue : </span><span class="si">%d</span><span class="s2"> lignes retenues."</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">df</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCirculations.resume">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.circulations.AnalyseCirculations.resume">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">resume</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">donnees_filtrees</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Calcule un tableau synthetique d'indicateurs globaux sur le perimetre retenu."""</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filtrer</span><span class="p">()</span> <span class="k">if</span> <span class="n">donnees_filtrees</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">donnees_filtrees</span>
+        <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="p">{</span>
+                        <span class="s2">"nb_observations"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                        <span class="s2">"nb_liaisons"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                        <span class="s2">"total_trains_prevus"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                        <span class="s2">"total_annulations"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                        <span class="s2">"total_trains_circules"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                        <span class="s2">"taux_annulation_pondere"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                        <span class="s2">"taux_retard_pondere"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                    <span class="p">}</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+
+        <span class="n">total_prevu</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="n">total_annul</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">"nb_annulation"</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="n">total_circules</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="n">total_retard</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">"nb_train_retard_arrivee"</span><span class="p">]</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+
+        <span class="n">taux_annul</span> <span class="o">=</span> <span class="p">(</span><span class="n">total_annul</span> <span class="o">/</span> <span class="n">total_prevu</span> <span class="o">*</span> <span class="mf">100.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">total_prevu</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+        <span class="n">taux_retard</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="p">(</span><span class="n">total_retard</span> <span class="o">/</span> <span class="n">total_circules</span> <span class="o">*</span> <span class="mf">100.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">total_circules</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="p">{</span>
+                    <span class="s2">"nb_observations"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">),</span>
+                    <span class="s2">"nb_liaisons"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">"liaison"</span><span class="p">]</span><span class="o">.</span><span class="n">nunique</span><span class="p">()),</span>
+                    <span class="s2">"total_trains_prevus"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">total_prevu</span><span class="p">),</span>
+                    <span class="s2">"total_annulations"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">total_annul</span><span class="p">),</span>
+                    <span class="s2">"total_trains_circules"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">total_circules</span><span class="p">),</span>
+                    <span class="s2">"taux_annulation_pondere"</span><span class="p">:</span> <span class="n">taux_annul</span><span class="p">,</span>
+                    <span class="s2">"taux_retard_pondere"</span><span class="p">:</span> <span class="n">taux_retard</span><span class="p">,</span>
+                <span class="p">}</span>
+            <span class="p">]</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCirculations.agreger_par_liaison">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.circulations.AnalyseCirculations.agreger_par_liaison">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">agreger_par_liaison</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">donnees_filtrees</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">min_mois</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Agrege les indicateurs par liaison en sommant numerateurs et denominateurs."""</span>
+        <span class="k">if</span> <span class="n">min_mois</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ErreurValidationCirculations</span><span class="p">(</span>
+                <span class="s2">"Le parametre 'min_mois' doit etre superieur ou egal a 1."</span>
+            <span class="p">)</span>
+
+        <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filtrer</span><span class="p">()</span> <span class="k">if</span> <span class="n">donnees_filtrees</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">donnees_filtrees</span>
+        <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+                <span class="n">columns</span><span class="o">=</span><span class="p">[</span>
+                    <span class="s2">"liaison"</span><span class="p">,</span>
+                    <span class="s2">"gare_depart"</span><span class="p">,</span>
+                    <span class="s2">"gare_arrivee"</span><span class="p">,</span>
+                    <span class="s2">"nb_mois"</span><span class="p">,</span>
+                    <span class="s2">"nb_train_prevu"</span><span class="p">,</span>
+                    <span class="s2">"nb_annulation"</span><span class="p">,</span>
+                    <span class="s2">"trains_circules"</span><span class="p">,</span>
+                    <span class="s2">"nb_train_retard_arrivee"</span><span class="p">,</span>
+                    <span class="s2">"duree_moyenne"</span><span class="p">,</span>
+                    <span class="s2">"taux_annulation"</span><span class="p">,</span>
+                    <span class="s2">"taux_retard_arrivee"</span><span class="p">,</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+
+        <span class="n">agg</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span>
+            <span class="p">[</span><span class="s2">"liaison"</span><span class="p">,</span> <span class="s2">"gare_depart"</span><span class="p">,</span> <span class="s2">"gare_arrivee"</span><span class="p">],</span> <span class="n">as_index</span><span class="o">=</span><span class="kc">False</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+            <span class="n">nb_mois</span><span class="o">=</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"count"</span><span class="p">),</span>
+            <span class="n">nb_train_prevu</span><span class="o">=</span><span class="p">(</span><span class="s2">"nb_train_prevu"</span><span class="p">,</span> <span class="s2">"sum"</span><span class="p">),</span>
+            <span class="n">nb_annulation</span><span class="o">=</span><span class="p">(</span><span class="s2">"nb_annulation"</span><span class="p">,</span> <span class="s2">"sum"</span><span class="p">),</span>
+            <span class="n">trains_circules</span><span class="o">=</span><span class="p">(</span><span class="s2">"trains_circules"</span><span class="p">,</span> <span class="s2">"sum"</span><span class="p">),</span>
+            <span class="n">nb_train_retard_arrivee</span><span class="o">=</span><span class="p">(</span><span class="s2">"nb_train_retard_arrivee"</span><span class="p">,</span> <span class="s2">"sum"</span><span class="p">),</span>
+            <span class="n">duree_moyenne</span><span class="o">=</span><span class="p">(</span><span class="s2">"duree_moyenne"</span><span class="p">,</span> <span class="s2">"mean"</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">agg</span> <span class="o">=</span> <span class="n">agg</span><span class="p">[</span><span class="n">agg</span><span class="p">[</span><span class="s2">"nb_mois"</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">min_mois</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">agg</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">agg</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span>
+                <span class="n">taux_annulation</span><span class="o">=</span><span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+                <span class="n">taux_retard_arrivee</span><span class="o">=</span><span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="p">)</span>
+
+        <span class="n">agg</span><span class="p">[</span><span class="s2">"taux_annulation"</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+            <span class="n">agg</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">agg</span><span class="p">[</span><span class="s2">"nb_annulation"</span><span class="p">]</span> <span class="o">/</span> <span class="n">agg</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">])</span> <span class="o">*</span> <span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">agg</span><span class="p">[</span><span class="s2">"taux_retard_arrivee"</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+            <span class="n">agg</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">agg</span><span class="p">[</span><span class="s2">"nb_train_retard_arrivee"</span><span class="p">]</span> <span class="o">/</span> <span class="n">agg</span><span class="p">[</span><span class="s2">"trains_circules"</span><span class="p">])</span> <span class="o">*</span> <span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">agg</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s2">"nb_train_prevu"</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCirculations.calculer_correlations_volume">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.circulations.AnalyseCirculations.calculer_correlations_volume">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calculer_correlations_volume</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">donnees_table</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">cible</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"taux_annulation"</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Calcule les correlations de Pearson et Spearman entre le volume prevu et un taux cible."""</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agreger_par_liaison</span><span class="p">()</span> <span class="k">if</span> <span class="n">donnees_table</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">donnees_table</span>
+        <span class="k">if</span> <span class="n">cible</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"taux_annulation"</span><span class="p">,</span> <span class="s2">"taux_retard_arrivee"</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">ErreurValidationCirculations</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Indicateur cible non reconnu : </span><span class="si">{</span><span class="n">cible</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span> <span class="ow">or</span> <span class="s2">"nb_train_prevu"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="ow">or</span> <span class="n">cible</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">"n"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"pearson"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="s2">"spearman"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">}</span>
+
+        <span class="n">sous_df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[[</span><span class="s2">"nb_train_prevu"</span><span class="p">,</span> <span class="n">cible</span><span class="p">]]</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span>
+        <span class="n">n_obs</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">sous_df</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">n_obs</span> <span class="o">&lt;</span> <span class="mi">3</span>
+            <span class="ow">or</span> <span class="n">sous_df</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">]</span><span class="o">.</span><span class="n">nunique</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mi">2</span>
+            <span class="ow">or</span> <span class="n">sous_df</span><span class="p">[</span><span class="n">cible</span><span class="p">]</span><span class="o">.</span><span class="n">nunique</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mi">2</span>
+        <span class="p">):</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">"n"</span><span class="p">:</span> <span class="n">n_obs</span><span class="p">,</span> <span class="s2">"pearson"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="s2">"spearman"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">}</span>
+
+        <span class="n">rang_x</span> <span class="o">=</span> <span class="n">sous_df</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">]</span><span class="o">.</span><span class="n">rank</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s2">"average"</span><span class="p">)</span>
+        <span class="n">rang_y</span> <span class="o">=</span> <span class="n">sous_df</span><span class="p">[</span><span class="n">cible</span><span class="p">]</span><span class="o">.</span><span class="n">rank</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s2">"average"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">"n"</span><span class="p">:</span> <span class="n">n_obs</span><span class="p">,</span>
+            <span class="s2">"pearson"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span>
+                <span class="n">sous_df</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">]</span><span class="o">.</span><span class="n">corr</span><span class="p">(</span><span class="n">sous_df</span><span class="p">[</span><span class="n">cible</span><span class="p">],</span> <span class="n">method</span><span class="o">=</span><span class="s2">"pearson"</span><span class="p">)</span>
+            <span class="p">),</span>
+            <span class="s2">"spearman"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">rang_x</span><span class="o">.</span><span class="n">corr</span><span class="p">(</span><span class="n">rang_y</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"pearson"</span><span class="p">)),</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCirculations.construire_groupes_volume">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.circulations.AnalyseCirculations.construire_groupes_volume">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">construire_groupes_volume</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">donnees_filtrees</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">volume_min_liaison</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Classe les liaisons agregees en 3 groupes de desserte (quantiles) pour l'Analyse B."""</span>
+        <span class="k">if</span> <span class="n">volume_min_liaison</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ErreurValidationCirculations</span><span class="p">(</span>
+                <span class="s2">"Le volume minimal par liaison ne peut pas etre negatif."</span>
+            <span class="p">)</span>
+
+        <span class="n">agg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agreger_par_liaison</span><span class="p">(</span><span class="n">donnees_filtrees</span><span class="p">)</span>
+        <span class="n">agg</span> <span class="o">=</span> <span class="n">agg</span><span class="p">[</span><span class="n">agg</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">volume_min_liaison</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">agg</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="n">agg</span><span class="p">[</span><span class="s2">"groupe_volume"</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s2">"object"</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">agg</span>
+
+        <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"1. Faible desserte"</span><span class="p">,</span> <span class="s2">"2. Desserte moyenne"</span><span class="p">,</span> <span class="s2">"3. Forte desserte"</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">agg</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">]</span><span class="o">.</span><span class="n">nunique</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">agg</span><span class="p">[</span><span class="s2">"groupe_volume"</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">qcut</span><span class="p">(</span>
+                <span class="n">agg</span><span class="p">[</span><span class="s2">"nb_train_prevu"</span><span class="p">],</span> <span class="n">q</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">duplicates</span><span class="o">=</span><span class="s2">"drop"</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">agg</span><span class="p">[</span><span class="s2">"groupe_volume"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"Volume homogene"</span>
+
+        <span class="k">return</span> <span class="n">agg</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AnalyseCirculations.analyser_duree_et_robustesse">
+<a class="viewcode-back" href="../../projet_railinsight.html#projet_railinsight.circulations.AnalyseCirculations.analyser_duree_et_robustesse">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">analyser_duree_et_robustesse</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">donnees_filtrees</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">exclure_extremes_iqr</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Prepare les donnees par liaison avec categories de duree et filtre IQR optionnel (Analyse C)."""</span>
+        <span class="n">agg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agreger_par_liaison</span><span class="p">(</span><span class="n">donnees_filtrees</span><span class="p">)</span>
+        <span class="n">agg</span> <span class="o">=</span> <span class="n">agg</span><span class="p">[</span><span class="n">agg</span><span class="p">[</span><span class="s2">"duree_moyenne"</span><span class="p">]</span><span class="o">.</span><span class="n">notna</span><span class="p">()</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">agg</span><span class="p">[</span><span class="s2">"duree_moyenne"</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">agg</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="n">agg</span><span class="p">[</span><span class="s2">"categorie_duree"</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s2">"object"</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">agg</span>
+
+        <span class="k">if</span> <span class="n">exclure_extremes_iqr</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">agg</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="n">q1</span> <span class="o">=</span> <span class="n">agg</span><span class="p">[</span><span class="s2">"taux_annulation"</span><span class="p">]</span><span class="o">.</span><span class="n">quantile</span><span class="p">(</span><span class="mf">0.25</span><span class="p">)</span>
+            <span class="n">q3</span> <span class="o">=</span> <span class="n">agg</span><span class="p">[</span><span class="s2">"taux_annulation"</span><span class="p">]</span><span class="o">.</span><span class="n">quantile</span><span class="p">(</span><span class="mf">0.75</span><span class="p">)</span>
+            <span class="n">iqr</span> <span class="o">=</span> <span class="n">q3</span> <span class="o">-</span> <span class="n">q1</span>
+            <span class="n">seuil_haut</span> <span class="o">=</span> <span class="n">q3</span> <span class="o">+</span> <span class="mf">1.5</span> <span class="o">*</span> <span class="n">iqr</span>
+            <span class="n">agg</span> <span class="o">=</span> <span class="n">agg</span><span class="p">[</span><span class="n">agg</span><span class="p">[</span><span class="s2">"taux_annulation"</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">seuil_haut</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="n">bornes</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">90.0</span><span class="p">,</span> <span class="mf">150.0</span><span class="p">,</span> <span class="mf">210.0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span>
+        <span class="n">etiquettes</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">"Court (&lt; 1h30)"</span><span class="p">,</span>
+            <span class="s2">"Moyen (1h30 - 2h30)"</span><span class="p">,</span>
+            <span class="s2">"Long (2h30 - 3h30)"</span><span class="p">,</span>
+            <span class="s2">"Tres long (&gt; 3h30)"</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="n">agg</span><span class="p">[</span><span class="s2">"categorie_duree"</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">cut</span><span class="p">(</span>
+            <span class="n">agg</span><span class="p">[</span><span class="s2">"duree_moyenne"</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="n">bornes</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">etiquettes</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="kc">False</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">agg</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">RailInsight-SNCF</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Code du module</a><ul>
+  <li><a href="../projet_railinsight.html">projet_railinsight</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, Ghislain ZEUFACK, Romain VALLÉE, Manganaw N'DAAM, Emmanuel TAGAE, Jonathan RAKOTOVAO.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.2.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
