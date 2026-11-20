@@ -99,7 +99,7 @@ railinsight-sncf/
 ├── tests/                         # Tests unitaires et d'intégration
 ├── docs/                          # Sphinx, datasheet et analyses
 ├── data/                          # Données locales non publiées par défaut
-├── notebooks                      # Analyses effectué par chaque membre du groupe
+├── notebooks                      # Analyses effectuées par chaque membre du groupe
 ├── logs/                          # Journaux locaux
 ├── pyproject.toml                 # Configuration et dépendances
 ├── uv.lock                        # Verrouillage des versions
